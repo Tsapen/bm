@@ -1,0 +1,4 @@
+{
+    "address": "book-management:8080",
+    "timeout": 5000000000
+}
