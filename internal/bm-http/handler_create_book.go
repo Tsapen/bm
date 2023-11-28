@@ -2,27 +2,12 @@ package bmhttp
 
 import (
 	"context"
-	"time"
 
 	bm "github.com/Tsapen/bm/internal/bm"
+	"github.com/Tsapen/bm/pkg/api"
 )
 
-type (
-	createBookReq struct {
-		Title         string    `json:"title"`
-		Author        string    `json:"author"`
-		PublishedDate time.Time `json:"published_date"`
-		Edition       string    `json:"edition"`
-		Description   string    `json:"description"`
-		Genre         string    `json:"genre"`
-	}
-
-	createBookResp struct {
-		ID int64 `json:"id"`
-	}
-)
-
-func (b *serviceBundle) createBook(ctx context.Context, r *createBookReq) (any, error) {
+func (b *serviceBundle) createBook(ctx context.Context, r *api.CreateBookReq) (*api.CreateBookResp, error) {
 	bookData := bm.Book{
 		Title:         r.Title,
 		Author:        r.Author,
@@ -37,7 +22,7 @@ func (b *serviceBundle) createBook(ctx context.Context, r *createBookReq) (any, 
 		return nil, err
 	}
 
-	return createBookResp{
+	return &api.CreateBookResp{
 		ID: id,
 	}, nil
 }

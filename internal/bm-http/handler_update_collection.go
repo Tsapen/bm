@@ -5,27 +5,16 @@ import (
 	"fmt"
 
 	bm "github.com/Tsapen/bm/internal/bm"
+	"github.com/Tsapen/bm/pkg/api"
 )
 
-type (
-	updateCollectionReq struct {
-		ID          int64  `json:"id"`
-		Name        string `json:"name"`
-		Description string `json:"decription"`
-	}
-
-	updateCollectionResp struct {
-		Success bool `json:"success"`
-	}
-)
-
-func (b *serviceBundle) updateCollection(ctx context.Context, r *updateCollectionReq) (any, error) {
+func (b *serviceBundle) updateCollection(ctx context.Context, r *api.UpdateCollectionReq) (*api.UpdateCollectionResp, error) {
 	err := b.bookService.UpdateCollection(ctx, bm.Collection(*r))
 	if err != nil {
 		return nil, fmt.Errorf("update collection: %w", err)
 	}
 
-	return updateCollectionResp{
+	return &api.UpdateCollectionResp{
 		Success: true,
 	}, nil
 }

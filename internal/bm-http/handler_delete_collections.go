@@ -3,25 +3,17 @@ package bmhttp
 import (
 	"context"
 	"fmt"
+
+	"github.com/Tsapen/bm/pkg/api"
 )
 
-type (
-	deleteCollectionReq struct {
-		ID int64 `json:"id"`
-	}
-
-	deleteCollectionResp struct {
-		Success bool `json:"success"`
-	}
-)
-
-func (b *serviceBundle) deleteCollection(ctx context.Context, r *deleteCollectionReq) (any, error) {
+func (b *serviceBundle) deleteCollection(ctx context.Context, r *api.DeleteCollectionReq) (*api.DeleteCollectionResp, error) {
 	err := b.bookService.DeleteCollection(ctx, r.ID)
 	if err != nil {
 		return nil, fmt.Errorf("delete collection: %w", err)
 	}
 
-	return deleteCollectionResp{
+	return &api.DeleteCollectionResp{
 		Success: true,
 	}, nil
 }

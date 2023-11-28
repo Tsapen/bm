@@ -5,22 +5,24 @@ import (
 	"database/sql"
 	"fmt"
 
-	bm "github.com/Tsapen/bm/internal/bm"
+	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
+
+	bm "github.com/Tsapen/bm/internal/bm"
 )
 
 // Config contains settings for db.
 type Config struct {
 	UserName    string
 	Password    string
-	HostName    string
 	Port        string
 	VirtualHost string
+	HostName    string
 }
 
 // DB contains db connection.
 type DB struct {
-	*sql.DB
+	*sqlx.DB
 }
 
 func (c *Config) dbAddr() string {
@@ -37,13 +39,13 @@ func (c *Config) dbAddr() string {
 // New create new storage.
 func New(c Config) (*DB, error) {
 	dbAddr := c.dbAddr()
-	db, err := sql.Open("postgres", dbAddr)
+	db, err := sqlx.Open("postgres", dbAddr)
 	if err != nil {
-		return nil, fmt.Errorf("can't open connection %s: %w", dbAddr, err)
+		return nil, fmt.Errorf("open connection %s: %w", dbAddr, err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return nil, fmt.Errorf("can't ping with connection %s: %w", dbAddr, err)
+		return nil, fmt.Errorf("ping with connection %s: %w", dbAddr, err)
 	}
 
 	return &DB{

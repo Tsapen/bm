@@ -1,0 +1,19 @@
+{
+    "unix_socket": {
+        "socket_path": "",
+        "connections_max_count": 5,
+        "timeout": "1s"
+    },
+    "http": {
+        "address": ":8080",
+        "connections_max_count": 10,
+        "timeout": "1s"
+    },
+    "db": {
+        "username": "bm_test",
+        "password": "bm_test_password",
+        "port": "5432",
+        "virtual_host": "bm_test",
+        "host": "test-postgres"
+    }
+}

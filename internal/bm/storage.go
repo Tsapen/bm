@@ -7,6 +7,7 @@ import (
 
 type (
 	BookFilter struct {
+		ID           int64
 		Author       string
 		Genre        string
 		CollectionID int64

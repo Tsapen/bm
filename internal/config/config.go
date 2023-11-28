@@ -17,38 +17,45 @@ type serverEnvs struct {
 	Config  string `env:"BM_SERVER_CONFIG"`
 }
 
-type clientEnvs struct {
+type httpClientEnvs struct {
 	RootDir string `env:"BM_ROOT_DIR"`
-	Config  string `env:"BM_CLIENT_CONFIG"`
+	Config  string `env:"BM_HTTP_CLIENT_CONFIG"`
+}
+
+type cliClientEnvs struct {
+	RootDir string `env:"BM_ROOT_DIR"`
+	Config  string `env:"BM_CLI_CLIENT_CONFIG"`
 }
 
 type ServerConfig struct {
-	UnixSocketCfg
-	HTTPCfg HTTPCfg `json:"http"`
-	AraDB   DBCfg   `json:"db"`
+	UnixSocketCfg *UnixSocketCfg `json:"unix_socket"`
+	HTTPCfg       *HTTPCfg       `json:"http"`
+	DB            *DBCfg         `json:"db"`
 }
 
 type UnixSocketCfg struct {
 	SocketPath   string `json:"socket_path"`
-	ConnMaxCount int    `json:"connections_max_count"`
+	ConnMaxCount int64  `json:"connections_max_count"`
 
 	Timeout time.Duration `json:"-"`
 }
 
 func (c *UnixSocketCfg) UnmarshalJSON(data []byte) error {
-	cfg := new(struct {
+	type Alias UnixSocketCfg
+	aux := &struct {
 		Timeout string `json:"timeout"`
-
-		UnixSocketCfg
-	})
-
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return err
+		*Alias
+	}{
+		Alias: (*Alias)(c),
 	}
 
-	duration, err := time.ParseDuration(cfg.Timeout)
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+
+	duration, err := time.ParseDuration(aux.Timeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse timeout: %w", err)
 	}
 
 	c.Timeout = duration
@@ -64,19 +71,21 @@ type HTTPCfg struct {
 }
 
 func (c *HTTPCfg) UnmarshalJSON(data []byte) error {
-	cfg := new(struct {
+	type Alias HTTPCfg
+	aux := &struct {
 		Timeout string `json:"timeout"`
-
-		HTTPCfg
-	})
-
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return err
+		*Alias
+	}{
+		Alias: (*Alias)(c),
 	}
 
-	duration, err := time.ParseDuration(cfg.Timeout)
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+
+	duration, err := time.ParseDuration(aux.Timeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse timeout: %w", err)
 	}
 
 	c.Timeout = duration
@@ -87,35 +96,43 @@ func (c *HTTPCfg) UnmarshalJSON(data []byte) error {
 type DBCfg struct {
 	UserName    string `json:"username"`
 	Password    string `json:"password"`
-	HostName    string `json:"hostname"`
 	Port        string `json:"port"`
 	VirtualHost string `json:"virtual_host"`
+
+	HostName string `json:"host"`
 }
 
-type ClientConfig struct {
+type HTTPClientConfig struct {
 	Address string `json:"address"`
 
 	Timeout time.Duration `json:"-"`
 }
 
-func (c *ClientConfig) UnmarshalJSON(data []byte) error {
-	cfg := new(struct {
+func (c *HTTPClientConfig) UnmarshalJSON(data []byte) error {
+	type Alias HTTPClientConfig
+	aux := &struct {
 		Timeout string `json:"timeout"`
-		ClientConfig
-	})
-
-	if err := json.Unmarshal(data, &cfg); err != nil {
-		return err
+		*Alias
+	}{
+		Alias: (*Alias)(c),
 	}
 
-	timeout, err := time.ParseDuration(cfg.Timeout)
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+
+	duration, err := time.ParseDuration(aux.Timeout)
 	if err != nil {
-		return err
+		return fmt.Errorf("parse timeout: %w", err)
 	}
 
-	c.Timeout = timeout
+	c.Timeout = duration
 
 	return nil
+}
+
+type CLIClientConfig struct {
+	UnixSocketCfg *UnixSocketCfg `json:"unix_socket"`
 }
 
 func GetForServer() (*ServerConfig, error) {
@@ -132,13 +149,27 @@ func GetForServer() (*ServerConfig, error) {
 	return cfg, nil
 }
 
-func GetForClient() (*ClientConfig, error) {
-	envs := new(clientEnvs)
+func GetForHTTPClient() (*HTTPClientConfig, error) {
+	envs := new(httpClientEnvs)
 	if err := env.Parse(envs); err != nil {
 		return nil, fmt.Errorf("get envs: %w", err)
 	}
 
-	cfg := new(ClientConfig)
+	cfg := new(HTTPClientConfig)
+	if err := readFromEnv(path.Join(envs.RootDir, envs.Config), cfg); err != nil {
+		return nil, fmt.Errorf("read config: %w", err)
+	}
+
+	return cfg, nil
+}
+
+func GetForCLIClient() (*CLIClientConfig, error) {
+	envs := new(cliClientEnvs)
+	if err := env.Parse(envs); err != nil {
+		return nil, fmt.Errorf("get envs: %w", err)
+	}
+
+	cfg := new(CLIClientConfig)
 	if err := readFromEnv(path.Join(envs.RootDir, envs.Config), cfg); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}

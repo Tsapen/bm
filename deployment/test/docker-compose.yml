@@ -1,0 +1,28 @@
+version: '3'
+
+networks:
+  bm-test-network:
+
+services:
+  test-postgres:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_DB: bm_test
+      POSTGRES_USER: bm_test
+      POSTGRES_PASSWORD: bm_test_password
+    networks:
+      - bm-test-network
+
+  test-bm:
+    build:
+      dockerfile: deployment/test/Dockerfile.test
+      context: ../../
+    environment:
+      - BM_ROOT_DIR=/app
+      - BM_MIGRATIONS_CONFIG_FILE=config_tests.yaml
+      - BM_SERVER_CONFIG=/configs/test_server_config.json
+      - BM_HTTP_CLIENT_CONFIG=/configs/test_http_client_config.json
+    networks:
+      - bm-test-network
+    depends_on:
+      - test-postgres

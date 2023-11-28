@@ -7,68 +7,61 @@ import (
 	"strings"
 
 	"github.com/jmoiron/sqlx"
+	"github.com/lib/pq"
 
 	bm "github.com/Tsapen/bm/internal/bm"
 )
 
 // Collections gets collections.
 func (s *DB) Collections(ctx context.Context, f bm.CollectionsFilter) ([]bm.Collection, error) {
-	q := "SELECT c.id, c.name, c.description FROM c collections "
-	q += collectionsWhereClause(f)
+	q := "SELECT c.id, c.name, c.description FROM collections c "
+	whereClause, params := collectionsWhereClause(f)
+	q += whereClause
 	q += orderBy("c", f.OrderBy, f.Desc)
 	q += pagination(f.Page, f.PageSize)
 
-	q, args, err := sqlx.Named(q, f)
+	rows, err := s.NamedQueryContext(ctx, q, params)
 	if err != nil {
-		return nil, err
-	}
-
-	var rows *sql.Rows
-	rows, err = s.Query(q, args...)
-	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("select collections: %w", err)
 	}
 
 	defer func() {
 		err = bm.HandleErrPair(rows.Close(), err)
 	}()
 
-	collections := make([]bm.Collection, 0, f.PageSize)
-	for rows.Next() {
-		var c bm.Collection
-		if err = rows.Scan(&c); err != nil {
-			return nil, err
-		}
-
-		collections = append(collections, c)
+	var collections []bm.Collection
+	if err = sqlx.StructScan(rows, &collections); err != nil {
+		return nil, fmt.Errorf("copy data into struct: %w", err)
 	}
 
 	return collections, nil
 }
 
-func collectionsWhereClause(f bm.CollectionsFilter) string {
+func collectionsWhereClause(f bm.CollectionsFilter) (string, map[string]any) {
 	whereClauses := make([]string, 0)
+	params := make(map[string]any, 0)
 
 	if len(f.IDs) > 0 {
-		whereClauses = append(whereClauses, fmt.Sprintf("id IN ($1)", f.IDs))
+		whereClauses = append(whereClauses, "c.id = ANY(:ids) ")
+		params["ids"] = pq.Array(f.IDs)
 	}
 
 	if len(whereClauses) == 0 {
-		return ""
+		return "", map[string]any{}
 	}
 
-	return "WHERE " + strings.Join(whereClauses, " AND ")
+	return "WHERE " + strings.Join(whereClauses, " AND "), params
 }
 
 func (s *DB) CreateCollection(ctx context.Context, c bm.Collection) (int64, error) {
 	query := `
 		INSERT INTO collections (name, description)
-		VALUES (:name, :description)
+		VALUES ($1, $2)
 		RETURNING id
 	`
 
 	var id int64
-	err := s.QueryRowContext(ctx, query, c).Scan(&id)
+	err := s.QueryRowContext(ctx, query, c.Name, c.Description).Scan(&id)
 	if err != nil {
 		return 0, fmt.Errorf("execute collection insert: %w", err)
 	}
@@ -76,34 +69,26 @@ func (s *DB) CreateCollection(ctx context.Context, c bm.Collection) (int64, erro
 	return id, nil
 }
 
-func insertBooksCollectionValues(numValues int) string {
-	values := make([]string, 0, numValues)
-	for i := 0; i < numValues; i++ {
-		values = append(values, fmt.Sprintf("($%d, $%d)", i*2+1, i*2+2))
-	}
-
-	return strings.Join(values, ", ")
-}
-
-func collectionFieldsForUpdate(c bm.Collection) string {
-	q := []string{}
-	if c.Name != "" {
-		q = append(q, "name = :name")
-	}
-
-	if c.Description != "" {
-		q = append(q, "description = :description")
-	}
-
-	return strings.Join(q, ", ")
-}
-
 // UpdateCollection updates a collection and its books.
 func (s *DB) UpdateCollection(ctx context.Context, c bm.Collection) (err error) {
-	q := `UPDATE collections SET ` + collectionFieldsForUpdate(c) + ` WHERE id = :id`
-	err = s.QueryRowContext(ctx, q, c).Err()
+	params := []any{c.Name, c.Description, c.ID}
+	q := `UPDATE collections c SET
+			name = $1,
+			description = $2
+		WHERE id = $3`
+
+	result, err := s.DB.ExecContext(ctx, q, params...)
 	if err != nil {
 		return fmt.Errorf("update collection: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return fmt.Errorf("get the number of affected rows: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return fmt.Errorf("collection with ID %d not found", c.ID)
 	}
 
 	return nil
@@ -112,7 +97,7 @@ func (s *DB) UpdateCollection(ctx context.Context, c bm.Collection) (err error) 
 // DeleteCollections deletes collection and its associations.
 func (s *DB) DeleteCollection(ctx context.Context, id int64) error {
 	err := s.withTX(ctx, func(tx *sql.Tx) error {
-		q := `DELETE FROM collection_books WHERE collection_id = $1`
+		q := `DELETE FROM books_collection bc WHERE bc.collection_id = $1`
 		if _, err := tx.ExecContext(ctx, q, id); err != nil {
 			return fmt.Errorf("delete collection books: %w", err)
 		}
@@ -131,13 +116,21 @@ func (s *DB) DeleteCollection(ctx context.Context, id int64) error {
 	return nil
 }
 
+func insertBooksCollectionValues(numValues int) string {
+	values := make([]string, 0, numValues)
+	for i := 0; i < numValues; i++ {
+		values = append(values, fmt.Sprintf("($%d, $%d)", i*2+1, i*2+2))
+	}
+
+	return strings.Join(values, ", ")
+}
+
 // CreateBooksCollection adds books to a collection.
 func (s *DB) CreateBooksCollection(ctx context.Context, cID int64, bookIDs []int64) error {
 	err := s.withTX(ctx, func(tx *sql.Tx) error {
-		q := fmt.Sprintf(`
-		INSERT INTO collection_books (collection_id, book_id)
-		VALUES %s
-	`, insertBooksCollectionValues(len(bookIDs)))
+		q := fmt.Sprintf(
+			`INSERT INTO books_collection (collection_id, book_id) VALUES %s`,
+			insertBooksCollectionValues(len(bookIDs)))
 
 		args := make([]interface{}, 0, len(bookIDs)*2)
 		for _, bookID := range bookIDs {
@@ -159,8 +152,8 @@ func (s *DB) CreateBooksCollection(ctx context.Context, cID int64, bookIDs []int
 
 // DeleteBooksCollection deletes books from a collection.
 func (s *DB) DeleteBooksCollection(ctx context.Context, cID int64, bookIDs []int64) error {
-	q := `DELETE FROM collection_books WHERE collection_id = $1 AND book_id IN ($2)`
-	_, err := s.ExecContext(ctx, q, cID, bookIDs)
+	q := `DELETE FROM books_collection bc WHERE bc.collection_id = $1 AND bc.book_id = ANY ($2)`
+	_, err := s.ExecContext(ctx, q, cID, pq.Array(bookIDs))
 	if err != nil {
 		return fmt.Errorf("remove books from collection: %w", err)
 	}

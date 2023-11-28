@@ -2,11 +2,16 @@
 
 export BM_ROOT_DIR = $(shell pwd)
 export BM_SERVER_CONFIG = /configs/server_config.json
-export BM_CLIENT_CONFIG = /configs/client_config.json
+export BM_HTTP_CLIENT_CONFIG = /configs/http_client_config.json
+export BM_CLI_CLIENT_CONFIG = /configs/cli_client_config.json
 export PORT = $(shell grep -o '"address": "[^"]*"' $(BM_ROOT_DIR)$(BM_SERVER_CONFIG) | cut -d ':' -f 3 | cut -d '"' -f 1)
 
-export SERVER_IMAGE = book-management-server
-export CLIENT_IMAGE = book-management-client
+export SERVER_IMAGE = bm-server
+export HTTP_CLIENT_IMAGE = bm-http-client
+export CLI_CLIENT_IMAGE = bm-cli-client
+
+export BM_TEST_SERVER_CONFIG = /configs/test_server_config.json
+export BM_TEST_HTTP_CLIENT_CONFIG = /configs/test_server_config.json
 
 install-deps:
 	go install github.com/vektra/mockery/v2
@@ -14,27 +19,25 @@ install-deps:
 generate: install-deps
 	go generate ./...
 
-build-test-image:
-	docker build -t book-management-test -f $(BM_ROOT_DIR)/deployment/test/Dockerfile .
-
 run-tests:
-	docker run --rm book-management-test
+	$(call print-target)
+	docker-compose -f $(BM_ROOT_DIR)/deployment/test/docker-compose.yml down --remove-orphans
+	docker-compose -f $(BM_ROOT_DIR)/deployment/test/docker-compose.yml up --build test-bm
 
-# Run tests inside a Docker container
-test: build-test-image run-tests
+test: run-tests
 
-# Build and run the server in a Docker container
 run-server: stop-server
-	docker network rm bm-network 2>/dev/null || true
-	docker network create bm-network
-	docker build -t $(SERVER_IMAGE) --build-arg BM_ROOT_DIR=$(BM_ROOT_DIR) --build-arg BM_SERVER_CONFIG=$(BM_SERVER_CONFIG) -f $(BM_ROOT_DIR)/deployment/server/Dockerfile .
-	docker run -d -p $(PORT):$(PORT) --name $(SERVER_IMAGE) --network bm-network $(SERVER_IMAGE)
+	export BM_SERVER_CONFIG = /server_config.json
+	docker-compose -f $(BM_ROOT_DIR)/deployment/server/docker-compose.yml down --remove-orphans
+	docker-compose -f $(BM_ROOT_DIR)/deployment/server/docker-compose.yml up --build bm --detach
 
-# Build and run the client in a Docker container
-run-client: stop-client
-	docker build -t $(CLIENT_IMAGE) --build-arg BM_ROOT_DIR=$(BM_ROOT_DIR) --build-arg BM_CLIENT_CONFIG=$(BM_CLIENT_CONFIG) -f $(BM_ROOT_DIR)/deployment/client/Dockerfile .
-	docker run -d --name $(CLIENT_IMAGE) --network bm-network $(CLIENT_IMAGE)
-	docker logs $(CLIENT_IMAGE)
+run-cli-client:
+	docker build -t $(CLI_CLIENT_IMAGE) \
+		--build-arg BM_ROOT_DIR=$(BM_ROOT_DIR) \
+		--build-arg BM_CLI_CLIENT_CONFIG=$(BM_CLI_CLIENT_CONFIG) \
+		--build-arg BM_CLI_CLIENT_ARGS="$(ARGS)" \
+		-f $(BM_ROOT_DIR)/deployment/cli-client/Dockerfile .
+	docker run $(CLI_CLIENT_IMAGE)
 
 # Stop and remove the server container
 stop-server:
@@ -42,6 +45,6 @@ stop-server:
 	docker rm $(SERVER_IMAGE) 2>/dev/null || true
 
 # Stop and remove the client container
-stop-client:
-	docker stop $(CLIENT_IMAGE) 2>/dev/null || true
-	docker rm $(CLIENT_IMAGE) 2>/dev/null || true
+clean-cli-client:
+	docker stop $(CLI_CLIENT_IMAGE) 2>/dev/null || true
+	docker rm $(CLI_CLIENT_IMAGE) 2>/dev/null || true

@@ -7,8 +7,20 @@ import (
 	bm "github.com/Tsapen/bm/internal/bm"
 )
 
-func (s *Service) Collections(ctx context.Context, cf bm.CollectionsFilter) ([]bm.Collection, error) {
-	collections, err := s.db.Collections(ctx, cf)
+func (s *Service) Collections(ctx context.Context, f bm.CollectionsFilter) ([]bm.Collection, error) {
+	if f.OrderBy == "" {
+		f.OrderBy = "id"
+	}
+
+	if f.Page == 0 {
+		f.Page = 1
+	}
+
+	if f.PageSize == 0 {
+		f.PageSize = 50
+	}
+
+	collections, err := s.db.Collections(ctx, f)
 	if err != nil {
 		return nil, fmt.Errorf("get collections: %w", err)
 	}

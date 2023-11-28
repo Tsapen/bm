@@ -1,0 +1,31 @@
+version: '3'
+
+services:
+  bm:
+    build:
+      dockerfile: deployment/server/Dockerfile
+      context: ../../
+    environment:
+      - BM_ROOT_DIR=/app
+      - BM_SERVER_CONFIG=/configs/server_config.json
+      - BM_POSTGRES_HOST=bm_postgres_1
+    # depends_on:
+    #   - bm_postgres_1
+    links:
+      - db
+
+  db:
+    image: postgres:14-alpine
+    container_name: bm_postgres_1
+    command: postgres -c 'max_connections=500'
+    environment:
+      POSTGRES_DB: bm
+      POSTGRES_USER: bm
+      POSTGRES_PASSWORD: bm_password
+      PGDATA: /pgtmpfs
+      POSTGRES_HOST: db
+    ports:
+      - "5432:5432"
+
+volumes:
+  data:

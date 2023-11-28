@@ -5,20 +5,10 @@ import (
 	"fmt"
 
 	bm "github.com/Tsapen/bm/internal/bm"
+	"github.com/Tsapen/bm/pkg/api"
 )
 
-type (
-	createCollectionReq struct {
-		Name        string `json:"name"`
-		Description string `json:"decription"`
-	}
-
-	createCollectionResp struct {
-		ID int64 `json:"id"`
-	}
-)
-
-func (b *serviceBundle) createCollection(ctx context.Context, r *createCollectionReq) (any, error) {
+func (b *serviceBundle) createCollection(ctx context.Context, r *api.CreateCollectionReq) (*api.CreateCollectionResp, error) {
 	collectionData := bm.Collection{
 		Name:        r.Name,
 		Description: r.Description,
@@ -29,7 +19,7 @@ func (b *serviceBundle) createCollection(ctx context.Context, r *createCollectio
 		return nil, fmt.Errorf("create collection: %w", err)
 	}
 
-	return createCollectionResp{
+	return &api.CreateCollectionResp{
 		ID: id,
 	}, nil
 }

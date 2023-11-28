@@ -26,7 +26,7 @@ type (
 
 	Config struct {
 		SocketPath   string
-		ConnMaxCount int
+		ConnMaxCount int64
 		Timeout      time.Duration
 	}
 
@@ -47,7 +47,7 @@ func NewServer(cfg Config, bookService *bs.Service) (*Server, error) {
 	}
 
 	sem := make(chan struct{}, cfg.ConnMaxCount)
-	for i := 0; i < cfg.ConnMaxCount; i++ {
+	for i := 0; i < int(cfg.ConnMaxCount); i++ {
 		sem <- struct{}{}
 	}
 
@@ -76,6 +76,9 @@ func (s *Server) Start() {
 
 		go func() {
 			<-s.sem
+			defer func() {
+				s.sem <- struct{}{}
+			}()
 
 			conn.SetReadDeadline(time.Now().Add(s.cfg.Timeout))
 			conn.SetWriteDeadline(time.Now().Add(s.cfg.Timeout))
@@ -83,17 +86,16 @@ func (s *Server) Start() {
 			ctx := bm.WithReqID(context.Background(), uuid.NewString())
 
 			s.handle(ctx, conn)
-
-			s.sem <- struct{}{}
 		}()
 	}
 }
 func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	logger := log.With().Str("request_id", bm.ReqIDFromCtx(ctx)).Logger()
+
 	cmd := new(command)
 	err := json.NewEncoder(conn).Encode(cmd)
 	if err != nil {
-		logger.Info().Err(err).Any("request", cmd).Msgf("parse command")
+		logger.Info().Err(err).Any("request", cmd).Msg("parse command")
 
 		return
 	}
@@ -138,13 +140,13 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	}
 
 	if err != nil {
-		logger.Info().Err(err).Any("request", cmd).Msgf("handle request")
+		logger.Info().Err(err).Any("request", cmd).Msg("handle request")
 
 		return
 	}
 
 	if err = json.NewEncoder(conn).Encode(resp); err != nil {
-		logger.Info().Err(err).Msgf("encode request")
+		logger.Info().Err(err).Msg("encode request")
 
 		return
 	}

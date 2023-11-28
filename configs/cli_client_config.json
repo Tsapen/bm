@@ -1,0 +1,7 @@
+{
+    "unix_socket": {
+        "socket_path": "path",
+        "connections_max_count": 100,
+        "timeout": "5s"
+    }
+}

@@ -1,5 +1,18 @@
 {
-    "address": "0.0.0.0:8080",
-    "connections_max_count": 100,
-    "timeout": 5000000000
+    "unix_socket": {
+        "socket_path": "",
+        "connections_max_count": 100,
+        "timeout": "5s"
+    },
+    "http": {
+        "address": "0.0.0.0:8080",
+        "connections_max_count": 100,
+        "timeout": "5s"
+    },
+    "db": {
+        "username": "bm",
+        "password": "bm_password",
+        "port": "5432",
+        "virtual_host": "bm"
+    }
 }

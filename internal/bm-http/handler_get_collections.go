@@ -7,91 +7,73 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gorilla/mux"
-
 	bm "github.com/Tsapen/bm/internal/bm"
+	"github.com/Tsapen/bm/pkg/api"
 )
 
-type (
-	getCollectionsReq struct {
-		IDs      []int64
-		OrderBy  string
-		Desc     bool
-		Page     int64
-		PageSize int64
-	}
-
-	collection struct {
-		ID          int64  `json:"id"`
-		Name        string `json:"name"`
-		Description string `json:"decription"`
-	}
-
-	getCollectionsResp struct {
-		Collections []collection `json:"collections"`
-	}
-)
-
-func parseGetCollectionsReq(r *http.Request) (*getCollectionsReq, error) {
-	vars := mux.Vars(r)
-
+func parseGetCollectionsReq(r *http.Request) (*api.GetCollectionsReq, error) {
 	var desc bool
 	var page, pageSize int64
 	var err error
+	var ids []int64
 
-	idStrs := strings.Split(vars["ids"], ",")
-	ids := make([]int64, 0, len(idStrs))
-	for _, idStr := range idStrs {
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("incorrect id: %w", err)
+	q := r.URL.Query()
+
+	if idsParam := q.Get("ids"); len(idsParam) > 0 {
+		idStrs := strings.Split(idsParam, ",")
+		ids = make([]int64, 0, len(idStrs))
+		for _, idStr := range idStrs {
+			id, err := strconv.ParseInt(idStr, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("incorrect id: %w", err)
+			}
+
+			ids = append(ids, id)
 		}
-
-		ids = append(ids, id)
 	}
 
-	if descStr, ok := vars["desc"]; ok {
+	if descStr := q.Get("desc"); descStr != "" {
 		desc, err = strconv.ParseBool(descStr)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect desc: %w", err)
 		}
 	}
 
-	if pageStr, ok := vars["page"]; ok {
+	if pageStr := q.Get("page"); pageStr != "" {
 		page, err = strconv.ParseInt(pageStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect page: %w", err)
 		}
 	}
 
-	if pageSizeStr, ok := vars["page_size"]; ok {
-		page, err = strconv.ParseInt(pageSizeStr, 10, 64)
+	if pageSizeStr := q.Get("page_size"); pageSizeStr != "" {
+		pageSize, err = strconv.ParseInt(pageSizeStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect page_size: %w", err)
 		}
 	}
 
-	return &getCollectionsReq{
+	return &api.GetCollectionsReq{
 		IDs:      ids,
-		OrderBy:  vars["order_by"],
+		OrderBy:  q.Get("order_by"),
 		Desc:     desc,
 		Page:     page,
 		PageSize: pageSize,
 	}, nil
 }
 
-func (b *serviceBundle) getCollections(ctx context.Context, r *getCollectionsReq) (any, error) {
+func (b *serviceBundle) getCollections(ctx context.Context, r *api.GetCollectionsReq) (*api.GetCollectionsResp, error) {
 	collections, err := b.bookService.Collections(ctx, bm.CollectionsFilter(*r))
 	if err != nil {
 		return nil, fmt.Errorf("get collections: %w", err)
 	}
 
-	collectionsResp := make([]collection, 0, len(collections))
+	collectionsResp := make([]api.Collection, 0, len(collections))
 	for _, c := range collections {
-		collectionsResp = append(collectionsResp, collection(c))
+		collectionsResp = append(collectionsResp, api.Collection(c))
 	}
 
-	return getCollectionsResp{
+	return &api.GetCollectionsResp{
 		Collections: collectionsResp,
 	}, nil
 }
