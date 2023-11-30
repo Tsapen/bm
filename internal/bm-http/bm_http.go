@@ -113,6 +113,7 @@ func parseJSONReq[Req any](r *http.Request) (*Req, error) {
 
 func renderErr(ctx context.Context, err error, w http.ResponseWriter) {
 	log.Info().Str("request_id", bm.ReqIDFromCtx(ctx)).Err(err).Msg("process message")
+	w.WriteHeader(httpStatus(err))
 	renderResponse(ctx, err, w)
 }
 

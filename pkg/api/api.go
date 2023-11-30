@@ -6,16 +6,16 @@ import (
 
 type (
 	GetBooksReq struct {
-		ID           int64     `url:"id,omitempty"`
-		Author       string    `url:"author,omitempty"`
-		Genre        string    `url:"genre,omitempty"`
-		CollectionID int64     `url:"collection_id,omitempty"`
-		StartDate    time.Time `url:"start_date,omitempty" layout:"2006-01-02"`
-		FinishDate   time.Time `url:"finish_date,omitempty" layout:"2006-01-02"`
-		OrderBy      string    `url:"order_by,omitempty"`
-		Desc         bool      `url:"desc,omitempty"`
-		Page         int64     `url:"page,omitempty"`
-		PageSize     int64     `url:"page_size,omitempty"`
+		ID           int64     `url:"id,omitempty" json:"id"`
+		Author       string    `url:"author,omitempty" json:"author"`
+		Genre        string    `url:"genre,omitempty" json:"genre"`
+		CollectionID int64     `url:"collection_id,omitempty" json:"collection_id"`
+		StartDate    time.Time `url:"start_date,omitempty" json:"start_date" layout:"2006-01-02"`
+		FinishDate   time.Time `url:"finish_date,omitempty" json:"finish_date" layout:"2006-01-02"`
+		OrderBy      string    `url:"order_by,omitempty" json:"order_by"`
+		Desc         bool      `url:"desc,omitempty" json:"desc"`
+		Page         int64     `url:"page,omitempty" json:"date"`
+		PageSize     int64     `url:"page_size,omitempty" json:"page_size"`
 	}
 
 	GetBooksResp struct {

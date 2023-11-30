@@ -12,6 +12,7 @@ import (
 
 	"github.com/Tsapen/bm/internal/bm"
 	bs "github.com/Tsapen/bm/internal/book-service"
+	"github.com/Tsapen/bm/pkg/api"
 )
 
 type (
@@ -52,6 +53,7 @@ func NewServer(cfg Config, bookService *bs.Service) (*Server, error) {
 	}
 
 	return &Server{
+		cfg:      cfg,
 		listener: listener,
 		bundle: &serviceBundle{
 			bookService: bookService,
@@ -92,49 +94,58 @@ func (s *Server) Start() {
 func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	logger := log.With().Str("request_id", bm.ReqIDFromCtx(ctx)).Logger()
 
+	defer func() {
+		if err := conn.Close(); err != nil {
+			logger.Info().Err(err).Msg("close connection")
+		}
+	}()
+
+	logger.Info().Msg("start processing")
 	cmd := new(command)
-	err := json.NewEncoder(conn).Encode(cmd)
+	err := json.NewDecoder(conn).Decode(cmd)
 	if err != nil {
 		logger.Info().Err(err).Any("request", cmd).Msg("parse command")
 
 		return
 	}
 
+	log.Info().Any("request", cmd).Msg("start processing")
+
 	var resp any
 	data := cmd.Data
 	switch cmd.Action {
 	case "get_books":
-		resp, err = handleFunc[getBooksReq](s.bundle.getBooks)(ctx, data)
+		resp, err = handleFunc[api.GetBooksReq, api.GetBooksResp](s.bundle.getBooks)(ctx, data)
 
 	case "create_book":
-		resp, err = handleFunc[createBookReq](s.bundle.createBook)(ctx, data)
+		resp, err = handleFunc[api.CreateBookReq, api.CreateBookResp](s.bundle.createBook)(ctx, data)
 
 	case "update_book":
-		resp, err = handleFunc[updateBookReq](s.bundle.updateBook)(ctx, data)
+		resp, err = handleFunc[api.UpdateBookReq, api.UpdateBookResp](s.bundle.updateBook)(ctx, data)
 
 	case "delete_books":
-		resp, err = handleFunc[deleteBooksReq](s.bundle.deleteBooks)(ctx, data)
+		resp, err = handleFunc[api.DeleteBooksReq, api.DeleteBooksResp](s.bundle.deleteBooks)(ctx, data)
 
 	case "get_collections":
-		resp, err = handleFunc[getCollectionsReq](s.bundle.getCollections)(ctx, data)
+		resp, err = handleFunc[api.GetCollectionsReq, api.GetCollectionsResp](s.bundle.getCollections)(ctx, data)
 
 	case "create_collection":
-		resp, err = handleFunc[createCollectionReq](s.bundle.createCollection)(ctx, data)
+		resp, err = handleFunc[api.CreateCollectionReq, api.CreateCollectionResp](s.bundle.createCollection)(ctx, data)
 
 	case "update_collection":
-		resp, err = handleFunc[updateCollectionReq](s.bundle.updateCollection)(ctx, data)
+		resp, err = handleFunc[api.UpdateCollectionReq, api.UpdateCollectionResp](s.bundle.updateCollection)(ctx, data)
 
 	case "delete_collection":
-		resp, err = handleFunc[deleteCollectionReq](s.bundle.deleteCollection)(ctx, data)
+		resp, err = handleFunc[api.DeleteCollectionReq, api.DeleteCollectionResp](s.bundle.deleteCollection)(ctx, data)
 
 	case "create_books_collection":
-		resp, err = handleFunc[createBooksCollectionReq](s.bundle.createBooksCollection)(ctx, data)
+		resp, err = handleFunc[api.CreateBooksCollectionReq, api.CreateBooksCollectionResp](s.bundle.createBooksCollection)(ctx, data)
 
 	case "delete_books_collection":
-		resp, err = handleFunc[deleteBooksCollectionReq](s.bundle.deleteBooksCollection)(ctx, data)
+		resp, err = handleFunc[api.DeleteBooksCollectionReq, api.DeleteBooksCollectionResp](s.bundle.deleteBooksCollection)(ctx, data)
 
 	default:
-		logger.Info().Err(err).Msgf("command not found")
+		logger.Info().Err(err).Msgf("command not found: %s", cmd.Action)
 
 		return
 	}
@@ -142,7 +153,7 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 	if err != nil {
 		logger.Info().Err(err).Any("request", cmd).Msg("handle request")
 
-		return
+		resp = map[string]any{"error": err}
 	}
 
 	if err = json.NewEncoder(conn).Encode(resp); err != nil {
@@ -150,10 +161,12 @@ func (s *Server) handle(ctx context.Context, conn net.Conn) {
 
 		return
 	}
+
+	log.Info().Any("response", resp).Msg("finish processing")
 }
 
-func handleFunc[Req any](
-	handle func(context.Context, *Req) (any, error),
+func handleFunc[Req, Resp any](
+	handle func(context.Context, *Req) (*Resp, error),
 ) func(context.Context, json.RawMessage) (any, error) {
 	return func(ctx context.Context, rawReq json.RawMessage) (any, error) {
 		req := new(Req)

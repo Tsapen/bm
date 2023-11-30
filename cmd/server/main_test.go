@@ -8,10 +8,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/rs/zerolog/log"
+
 	bmtest "github.com/Tsapen/bm/cmd/server/bm-test"
 	bmhttp "github.com/Tsapen/bm/internal/bm-http"
 	bs "github.com/Tsapen/bm/internal/book-service"
 	"github.com/Tsapen/bm/internal/config"
+	"github.com/Tsapen/bm/internal/migrator"
 	"github.com/Tsapen/bm/internal/postgres"
 	"github.com/Tsapen/bm/pkg/api"
 	httpclient "github.com/Tsapen/bm/pkg/http-client"
@@ -39,14 +42,18 @@ func TestBM(t *testing.T) {
 		t.Fatalf("init storage: %v\n", err)
 	}
 
+	cleanUpDB(t, serverCfg.DB)
+
+	if err = migrator.New(serverCfg.MigrationsPath, db).Apply(); err != nil {
+		log.Fatal().Err(err).Msg("apply migrations")
+	}
+
 	bookService := bs.New(db)
 
 	httpService, err := bmhttp.NewServer(bmhttp.Config(*serverCfg.HTTPCfg), bookService)
 	if err != nil {
 		t.Fatalf("init http server: %v\n", err)
 	}
-
-	cleanUpDB(t, serverCfg.DB)
 
 	go func() {
 		if err = httpService.Start(); err != nil {
@@ -98,32 +105,9 @@ func cleanUpDB(t *testing.T, c *config.DBCfg) {
 	}
 
 	var queries = []string{
-		`DROP TABLE IF EXISTS migrations`,
 		`DROP TABLE IF EXISTS books_collection`,
 		`DROP TABLE IF EXISTS collections`,
 		`DROP TABLE IF EXISTS books`,
-		`CREATE TABLE IF NOT EXISTS books (
-			id SERIAL NOT NULL PRIMARY KEY,
-			title VARCHAR(100) NOT NULL,
-			author VARCHAR(100) NOT NULL,
-			genre VARCHAR(100) NOT NULL,
-			published_date timestamp,
-			edition VARCHAR(100) NOT NULL,
-			description TEXT
-		);
-		
-		CREATE TABLE IF NOT EXISTS collections (
-			id SERIAL NOT NULL PRIMARY KEY,
-			name VARCHAR(100) NOT NULL,
-			description TEXT
-		);
-		
-		CREATE TABLE IF NOT EXISTS books_collection (
-			collection_id INT NOT NULL REFERENCES collections(id),
-			book_id INT NOT NULL REFERENCES books(id),
-			PRIMARY KEY(book_id, collection_id)
-		);
-		`,
 	}
 	for _, query := range queries {
 		_, err = db.Exec(query)

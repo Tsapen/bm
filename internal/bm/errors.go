@@ -4,10 +4,9 @@ import (
 	"fmt"
 )
 
-// Error implements error interface.
-type Error string
+type ValidationError string
 
-func (err Error) Error() string {
+func (err ValidationError) Error() string {
 	return string(err)
 }
 

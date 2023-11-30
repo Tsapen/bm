@@ -1,16 +1,18 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
+	"net"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
-	cliclient "github.com/Tsapen/bm/internal/cli-client"
-	"github.com/Tsapen/bm/internal/config"
+	"github.com/Tsapen/bm/internal/bm"
+	bmconfig "github.com/Tsapen/bm/internal/config"
 	"github.com/Tsapen/bm/pkg/api"
 )
 
@@ -43,7 +45,7 @@ type (
 )
 
 func main() {
-	cfg, err := config.GetForCLIClient()
+	cfg, err := bmconfig.GetForCLIClient()
 	if err != nil {
 		log.Fatal().Err(err).Msg("read config")
 	}
@@ -53,13 +55,12 @@ func main() {
 		log.Fatal().Err(err).Msg("get command")
 	}
 
-	log.Info().Any("command", cmd).Msg("cmd")
-	resp, err := cliclient.New(cliclient.Config(*cfg.UnixSocketCfg)).DoRequest(cmd)
+	resp, err := newClient(config(*cfg.UnixSocketCfg)).doRequest(cmd)
 	if err != nil {
 		log.Fatal().Err(err).Msg("do request to unix-socket server")
 	}
 
-	log.Info().Any("result", resp)
+	log.Info().Any("result", resp).Msg("success")
 }
 
 func parseFlags() *flags {
@@ -105,7 +106,7 @@ func getCommand() (*command, error) {
 	case "update_book":
 		data, err = f.toUpdateBookReq()
 
-	case "delete_book":
+	case "delete_books":
 		data, err = f.toDeleteBooksReq()
 
 	case "get_collections":
@@ -320,4 +321,44 @@ func toValue[T any](ptr *T) T {
 	var v T
 
 	return v
+}
+
+type (
+	config struct {
+		SocketPath   string
+		ConnMaxCount int64
+		Timeout      time.Duration
+	}
+
+	cliClient struct {
+		cfg config
+	}
+)
+
+func newClient(cfg config) *cliClient {
+	return &cliClient{
+		cfg: cfg,
+	}
+}
+
+func (c *cliClient) doRequest(req any) (resp any, err error) {
+	conn, err := net.Dial("unix", c.cfg.SocketPath)
+	if err != nil {
+		return nil, fmt.Errorf("make connection: %w", err)
+	}
+
+	defer func() {
+		err = bm.HandleErrPair(conn.Close(), err)
+	}()
+
+	if err = json.NewEncoder(conn).Encode(req); err != nil {
+		return nil, fmt.Errorf("write data: %w", err)
+	}
+
+	resp = new(any)
+	if err = json.NewDecoder(conn).Decode(resp); err != nil {
+		return "", fmt.Errorf("get response: %w", err)
+	}
+
+	return resp, nil
 }

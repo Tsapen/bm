@@ -8,11 +8,16 @@ services:
     environment:
       - BM_ROOT_DIR=/app
       - BM_SERVER_CONFIG=/configs/server_config.json
-      - BM_POSTGRES_HOST=bm_postgres_1
-    # depends_on:
-    #   - bm_postgres_1
-    links:
+      - BM_MIGRATIONS_PATH=/migrations/migrations.sql
+      - BM_CLI_CLIENT_CONFIG=configs/cli_client_config.json
+    ports:
+      - "8080:8080"
+    depends_on:
       - db
+    networks:
+      - backend
+    volumes:
+      - ../../socket/:/socket/:rw
 
   db:
     image: postgres:14-alpine
@@ -22,10 +27,14 @@ services:
       POSTGRES_DB: bm
       POSTGRES_USER: bm
       POSTGRES_PASSWORD: bm_password
-      PGDATA: /pgtmpfs
-      POSTGRES_HOST: db
-    ports:
-      - "5432:5432"
+      PGDATA: /data
+    networks:
+      - backend
+    volumes:
+      - postgres_data:/data
+
+networks:
+  backend:
 
 volumes:
-  data:
+  postgres_data:

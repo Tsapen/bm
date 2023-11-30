@@ -1,6 +1,6 @@
 {
     "unix_socket": {
-        "socket_path": "",
+        "socket_path": "/socket/socket.sock",
         "connections_max_count": 100,
         "timeout": "5s"
     },
@@ -10,6 +10,7 @@
         "timeout": "5s"
     },
     "db": {
+        "host": "db",
         "username": "bm",
         "password": "bm_password",
         "port": "5432",

@@ -4,6 +4,10 @@ import (
 	bm "github.com/Tsapen/bm/internal/bm"
 )
 
+const (
+	maxPageSize = 50
+)
+
 type Service struct {
 	db bm.Storage
 }

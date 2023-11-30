@@ -195,6 +195,101 @@ func (s *storage) testBooks(ctx context.Context, t *testing.T, client *httpclien
 	s.books = s.books[:4]
 }
 
+func (s *storage) testCreateBookValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.CreateBookReq
+	}{
+		{
+			req: &api.CreateBookReq{},
+		},
+		{
+			req: &api.CreateBookReq{
+				Title: "title",
+			},
+		},
+		{
+			req: &api.CreateBookReq{
+				Title:  "title",
+				Author: "author",
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.CreateBook(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
+func (s *storage) testGetBookValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.GetBooksReq
+	}{
+		{
+			req: &api.GetBooksReq{
+				OrderBy: "fake_field",
+			},
+		},
+		{
+			req: &api.GetBooksReq{
+				Page: -1,
+			},
+		},
+		{
+			req: &api.GetBooksReq{
+				PageSize: -1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.GetBooks(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
+func (s *storage) testUpdateBookValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.UpdateBookReq
+	}{
+		{
+			req: &api.UpdateBookReq{},
+		},
+		{
+			req: &api.UpdateBookReq{
+				ID: -1,
+			},
+		},
+		{
+			req: &api.UpdateBookReq{
+				ID: 1,
+			},
+		},
+		{
+			req: &api.UpdateBookReq{
+				ID:     1,
+				Author: "author",
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.UpdateBook(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
+func (s *storage) testDeleteBookValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.DeleteBooksReq
+	}{
+		{
+			req: &api.DeleteBooksReq{},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.DeleteBooks(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
 func (s *storage) testCollections(ctx context.Context, t *testing.T, client *httpclient.Client) {
 	// 1. Create collections.
 	s.collections = []*api.Collection{
@@ -297,6 +392,89 @@ func (s *storage) testCollections(ctx context.Context, t *testing.T, client *htt
 	s.collections = s.collections[:2]
 }
 
+func (s *storage) testCreateCollectionValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.CreateCollectionReq
+	}{
+		{
+			req: &api.CreateCollectionReq{},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.CreateCollection(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
+func (s *storage) testGetCollectionValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.GetCollectionsReq
+	}{
+		{
+			req: &api.GetCollectionsReq{
+				OrderBy: "fake_field",
+			},
+		},
+		{
+			req: &api.GetCollectionsReq{
+				OrderBy: "fake_field",
+			},
+		},
+		{
+			req: &api.GetCollectionsReq{
+				PageSize: -1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.GetCollections(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
+func (s *storage) testUpdateCollectionValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.UpdateCollectionReq
+	}{
+		{
+			req: &api.UpdateCollectionReq{},
+		},
+		{
+			req: &api.UpdateCollectionReq{
+				ID: -1,
+			},
+		},
+		{
+			req: &api.UpdateCollectionReq{
+				ID: 1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.UpdateCollection(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
+func (s *storage) testDeleteCollectionValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.DeleteCollectionReq
+	}{
+		{
+			req: &api.DeleteCollectionReq{},
+		},
+		{
+			req: &api.DeleteCollectionReq{
+				ID: -1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.DeleteCollection(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
 func (s *storage) testBooksCollection(ctx context.Context, t *testing.T, client *httpclient.Client) {
 	// 1. Create books collection.
 	collectionID := s.collections[0].ID
@@ -329,6 +507,54 @@ func (s *storage) testBooksCollection(ctx context.Context, t *testing.T, client 
 	for i, b := range s.books[:2] {
 		assert.Equal(t, b.ID, got.Books[i].ID)
 		assert.Equal(t, b.Title, got.Books[i].Title)
+	}
+}
+
+func (s *storage) testCreateBooksCollectionValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.CreateBooksCollectionReq
+	}{
+		{
+			req: &api.CreateBooksCollectionReq{},
+		},
+		{
+			req: &api.CreateBooksCollectionReq{
+				CID: -1,
+			},
+		},
+		{
+			req: &api.CreateBooksCollectionReq{
+				CID: 1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.CreateBooksCollection(ctx, tt.req)
+		assert.Error(t, err)
+	}
+}
+
+func (s *storage) testDeleteBooksCollectionValidation(ctx context.Context, t *testing.T, client *httpclient.Client) {
+	tests := []struct {
+		req *api.DeleteBooksCollectionReq
+	}{
+		{
+			req: &api.DeleteBooksCollectionReq{},
+		},
+		{
+			req: &api.DeleteBooksCollectionReq{
+				CID: -1,
+			},
+		},
+		{
+			req: &api.DeleteBooksCollectionReq{
+				CID: 1,
+			},
+		},
+	}
+	for _, tt := range tests {
+		_, err := client.DeleteBooksCollection(ctx, tt.req)
+		assert.Error(t, err)
 	}
 }
 

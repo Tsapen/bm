@@ -13,8 +13,9 @@ import (
 )
 
 type serverEnvs struct {
-	RootDir string `env:"BM_ROOT_DIR"`
-	Config  string `env:"BM_SERVER_CONFIG"`
+	RootDir        string `env:"BM_ROOT_DIR"`
+	Config         string `env:"BM_SERVER_CONFIG"`
+	MigrationsPath string `env:"BM_MIGRATIONS_PATH"`
 }
 
 type httpClientEnvs struct {
@@ -31,6 +32,8 @@ type ServerConfig struct {
 	UnixSocketCfg *UnixSocketCfg `json:"unix_socket"`
 	HTTPCfg       *HTTPCfg       `json:"http"`
 	DB            *DBCfg         `json:"db"`
+
+	MigrationsPath string `json:"-"`
 }
 
 type UnixSocketCfg struct {
@@ -145,6 +148,8 @@ func GetForServer() (*ServerConfig, error) {
 	if err := readFromEnv(path.Join(envs.RootDir, envs.Config), cfg); err != nil {
 		return nil, fmt.Errorf("read config: %w", err)
 	}
+
+	cfg.MigrationsPath = path.Join(envs.RootDir, envs.MigrationsPath)
 
 	return cfg, nil
 }

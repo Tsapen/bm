@@ -10,29 +10,10 @@ import (
 	"github.com/gorilla/mux"
 
 	bm "github.com/Tsapen/bm/internal/bm"
+	"github.com/Tsapen/bm/pkg/api"
 )
 
-type (
-	getCollectionsReq struct {
-		IDs      []int64
-		OrderBy  string
-		Desc     bool
-		Page     int64
-		PageSize int64
-	}
-
-	collection struct {
-		ID          int64  `json:"id"`
-		Name        string `json:"name"`
-		Description string `json:"decription"`
-	}
-
-	getCollectionsResp struct {
-		Collections []collection `json:"collections"`
-	}
-)
-
-func parseGetCollectionsReq(r *http.Request) (*getCollectionsReq, error) {
+func parseGetCollectionsReq(r *http.Request) (*api.GetCollectionsReq, error) {
 	vars := mux.Vars(r)
 
 	var desc bool
@@ -71,7 +52,7 @@ func parseGetCollectionsReq(r *http.Request) (*getCollectionsReq, error) {
 		}
 	}
 
-	return &getCollectionsReq{
+	return &api.GetCollectionsReq{
 		IDs:      ids,
 		OrderBy:  vars["order_by"],
 		Desc:     desc,
@@ -80,18 +61,18 @@ func parseGetCollectionsReq(r *http.Request) (*getCollectionsReq, error) {
 	}, nil
 }
 
-func (b *serviceBundle) getCollections(ctx context.Context, r *getCollectionsReq) (any, error) {
+func (b *serviceBundle) getCollections(ctx context.Context, r *api.GetCollectionsReq) (*api.GetCollectionsResp, error) {
 	collections, err := b.bookService.Collections(ctx, bm.CollectionsFilter(*r))
 	if err != nil {
 		return nil, fmt.Errorf("get collections: %w", err)
 	}
 
-	collectionsResp := make([]collection, 0, len(collections))
+	collectionsResp := make([]api.Collection, 0, len(collections))
 	for _, c := range collections {
-		collectionsResp = append(collectionsResp, collection(c))
+		collectionsResp = append(collectionsResp, api.Collection(c))
 	}
 
-	return getCollectionsResp{
+	return &api.GetCollectionsResp{
 		Collections: collectionsResp,
 	}, nil
 }

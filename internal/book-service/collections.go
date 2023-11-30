@@ -8,16 +8,28 @@ import (
 )
 
 func (s *Service) Collections(ctx context.Context, f bm.CollectionsFilter) ([]bm.Collection, error) {
-	if f.OrderBy == "" {
+	switch f.OrderBy {
+	case "id", "name":
+	case "":
 		f.OrderBy = "id"
+	default:
+		return nil, bm.ValidationError("incorrect order_by")
+	}
+
+	if f.Page < 0 {
+		return nil, bm.ValidationError("incorrect page")
 	}
 
 	if f.Page == 0 {
 		f.Page = 1
 	}
 
-	if f.PageSize == 0 {
-		f.PageSize = 50
+	if f.PageSize < 0 {
+		return nil, bm.ValidationError("page_size is negative")
+	}
+
+	if f.PageSize == 0 || f.PageSize > maxPageSize {
+		f.PageSize = maxPageSize
 	}
 
 	collections, err := s.db.Collections(ctx, f)
@@ -28,36 +40,11 @@ func (s *Service) Collections(ctx context.Context, f bm.CollectionsFilter) ([]bm
 	return collections, nil
 }
 
-func (s *Service) GetCollectionInfo(ctx context.Context, f bm.BooksCollectionFilter) (bm.CollectionInfo, error) {
-	cis, err := s.db.Collections(ctx, bm.CollectionsFilter{IDs: []int64{f.CID}})
-	if err != nil {
-		return bm.CollectionInfo{}, fmt.Errorf("get collection: %w", err)
-	}
-
-	if len(cis) != 1 {
-		return bm.CollectionInfo{}, fmt.Errorf("collection not found")
-	}
-
-	ci := bm.CollectionInfo{
-		Collection: cis[0],
-	}
-
-	bf := bm.BookFilter{
-		CollectionID: f.CID,
-		Desc:         f.Desc,
-		OrderBy:      f.OrderBy,
-		Page:         f.Page,
-		PageSize:     f.PageSize,
-	}
-	ci.Books, err = s.db.Books(ctx, bf)
-	if err != nil {
-		return bm.CollectionInfo{}, fmt.Errorf("get books: %w", err)
-	}
-
-	return ci, nil
-}
-
 func (s *Service) CreateCollection(ctx context.Context, c bm.Collection) (int64, error) {
+	if c.Name == "" {
+		return 0, bm.ValidationError("name is empty")
+	}
+
 	id, err := s.db.CreateCollection(ctx, c)
 	if err != nil {
 		return 0, fmt.Errorf("create collection: %w", err)
@@ -67,6 +54,14 @@ func (s *Service) CreateCollection(ctx context.Context, c bm.Collection) (int64,
 }
 
 func (s *Service) CreateBooksCollection(ctx context.Context, cID int64, bookIDs []int64) error {
+	if cID <= 0 {
+		return bm.ValidationError("incorrect collection_id")
+	}
+
+	if len(bookIDs) == 0 {
+		return bm.ValidationError("empty book ids list")
+	}
+
 	if err := s.db.CreateBooksCollection(ctx, cID, bookIDs); err != nil {
 		return fmt.Errorf("add books to collection: %w", err)
 	}
@@ -75,6 +70,14 @@ func (s *Service) CreateBooksCollection(ctx context.Context, cID int64, bookIDs 
 }
 
 func (s *Service) DeleteBooksCollection(ctx context.Context, cID int64, bookIDs []int64) error {
+	if cID <= 0 {
+		return bm.ValidationError("incorrect collection_id")
+	}
+
+	if len(bookIDs) == 0 {
+		return bm.ValidationError("empty book ids list")
+	}
+
 	if err := s.db.DeleteBooksCollection(ctx, cID, bookIDs); err != nil {
 		return fmt.Errorf("remove books from collection: %w", err)
 	}
@@ -82,8 +85,16 @@ func (s *Service) DeleteBooksCollection(ctx context.Context, cID int64, bookIDs 
 	return nil
 }
 
-func (s *Service) UpdateCollection(ctx context.Context, collection bm.Collection) error {
-	if err := s.db.UpdateCollection(ctx, collection); err != nil {
+func (s *Service) UpdateCollection(ctx context.Context, c bm.Collection) error {
+	if c.ID <= 0 {
+		return bm.ValidationError("incorrect id")
+	}
+
+	if c.Name == "" {
+		return bm.ValidationError("name is empty")
+	}
+
+	if err := s.db.UpdateCollection(ctx, c); err != nil {
 		return fmt.Errorf("update collection: %w", err)
 	}
 
@@ -91,6 +102,10 @@ func (s *Service) UpdateCollection(ctx context.Context, collection bm.Collection
 }
 
 func (s *Service) DeleteCollection(ctx context.Context, cID int64) error {
+	if cID <= 0 {
+		return bm.ValidationError("incorrect id")
+	}
+
 	if err := s.db.DeleteCollection(ctx, cID); err != nil {
 		return fmt.Errorf("delete collection: %w", err)
 	}

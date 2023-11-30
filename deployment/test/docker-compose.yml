@@ -19,9 +19,9 @@ services:
       context: ../../
     environment:
       - BM_ROOT_DIR=/app
-      - BM_MIGRATIONS_CONFIG_FILE=config_tests.yaml
       - BM_SERVER_CONFIG=/configs/test_server_config.json
       - BM_HTTP_CLIENT_CONFIG=/configs/test_http_client_config.json
+      - BM_MIGRATIONS_PATH=/migrations/migrations.sql
     networks:
       - bm-test-network
     depends_on:

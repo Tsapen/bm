@@ -7,6 +7,7 @@ import (
 	bmus "github.com/Tsapen/bm/internal/bm-unix-socket"
 	bs "github.com/Tsapen/bm/internal/book-service"
 	"github.com/Tsapen/bm/internal/config"
+	"github.com/Tsapen/bm/internal/migrator"
 	"github.com/Tsapen/bm/internal/postgres"
 )
 
@@ -19,6 +20,10 @@ func main() {
 	db, err := postgres.New(postgres.Config(*cfg.DB))
 	if err != nil {
 		log.Fatal().Err(err).Msg("init storage")
+	}
+
+	if err = migrator.New(cfg.MigrationsPath, db).Apply(); err != nil {
+		log.Fatal().Err(err).Msg("apply migrations")
 	}
 
 	bookService := bs.New(db)

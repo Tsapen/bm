@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"time"
 
 	"github.com/jmoiron/sqlx"
 	_ "github.com/lib/pq"
@@ -44,7 +45,15 @@ func New(c Config) (*DB, error) {
 		return nil, fmt.Errorf("open connection %s: %w", dbAddr, err)
 	}
 
-	if err := db.Ping(); err != nil {
+	for i := 0; i < 10; i++ {
+		if err = db.Ping(); err == nil {
+			break
+		}
+
+		time.Sleep(500 * time.Millisecond)
+	}
+
+	if err != nil {
 		return nil, fmt.Errorf("ping with connection %s: %w", dbAddr, err)
 	}
 
