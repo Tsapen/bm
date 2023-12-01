@@ -7,6 +7,7 @@ import (
 	bm "github.com/Tsapen/bm/internal/bm"
 )
 
+// Collections retrieves a list of collections based on the provided filter criteria.
 func (s *Service) Collections(ctx context.Context, f bm.CollectionsFilter) ([]bm.Collection, error) {
 	switch f.OrderBy {
 	case "id", "name":
@@ -40,6 +41,7 @@ func (s *Service) Collections(ctx context.Context, f bm.CollectionsFilter) ([]bm
 	return collections, nil
 }
 
+// CreateCollection creates a new collection with the provided details.
 func (s *Service) CreateCollection(ctx context.Context, c bm.Collection) (int64, error) {
 	if c.Name == "" {
 		return 0, bm.ValidationError("name is empty")
@@ -53,6 +55,7 @@ func (s *Service) CreateCollection(ctx context.Context, c bm.Collection) (int64,
 	return id, nil
 }
 
+// CreateBooksCollection adds a list of books to an existing collection.
 func (s *Service) CreateBooksCollection(ctx context.Context, cID int64, bookIDs []int64) error {
 	if cID <= 0 {
 		return bm.ValidationError("incorrect collection_id")
@@ -69,6 +72,7 @@ func (s *Service) CreateBooksCollection(ctx context.Context, cID int64, bookIDs 
 	return nil
 }
 
+// DeleteBooksCollection removes a list of books from an existing collection.
 func (s *Service) DeleteBooksCollection(ctx context.Context, cID int64, bookIDs []int64) error {
 	if cID <= 0 {
 		return bm.ValidationError("incorrect collection_id")
@@ -85,6 +89,7 @@ func (s *Service) DeleteBooksCollection(ctx context.Context, cID int64, bookIDs 
 	return nil
 }
 
+// UpdateCollection updates an existing collection with the provided details.
 func (s *Service) UpdateCollection(ctx context.Context, c bm.Collection) error {
 	if c.ID <= 0 {
 		return bm.ValidationError("incorrect id")
@@ -101,6 +106,7 @@ func (s *Service) UpdateCollection(ctx context.Context, c bm.Collection) error {
 	return nil
 }
 
+// DeleteCollection deletes a collection based on its ID.
 func (s *Service) DeleteCollection(ctx context.Context, cID int64) error {
 	if cID <= 0 {
 		return bm.ValidationError("incorrect id")

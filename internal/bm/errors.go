@@ -4,6 +4,7 @@ import (
 	"fmt"
 )
 
+// ValidationError is special error for incorrect request data.
 type ValidationError string
 
 func (err ValidationError) Error() string {

@@ -8,6 +8,7 @@ import (
 	bm "github.com/Tsapen/bm/internal/bm"
 )
 
+// Books retrieves a list of books based on the provided filter criteria.
 func (s *Service) Books(ctx context.Context, f bm.BookFilter) ([]bm.Book, error) {
 	switch f.OrderBy {
 	case "id", "title", "author", "genre", "published_date", "edition":
@@ -41,6 +42,7 @@ func (s *Service) Books(ctx context.Context, f bm.BookFilter) ([]bm.Book, error)
 	return books, nil
 }
 
+// CreateBook creates a new book with the provided details.
 func (s *Service) CreateBook(ctx context.Context, b bm.Book) (int64, error) {
 	if b.Title == "" {
 		return 0, bm.ValidationError("title is empty")
@@ -66,6 +68,7 @@ func (s *Service) CreateBook(ctx context.Context, b bm.Book) (int64, error) {
 	return id, nil
 }
 
+// UpdateBook updates an existing book with the provided details.
 func (s *Service) UpdateBook(ctx context.Context, b bm.Book) error {
 	if b.ID <= 0 {
 		return bm.ValidationError("incorrect id")
@@ -94,6 +97,7 @@ func (s *Service) UpdateBook(ctx context.Context, b bm.Book) error {
 	return nil
 }
 
+// DeleteBooks deletes multiple books based on their IDs.
 func (s *Service) DeleteBooks(ctx context.Context, ids []int64) error {
 	if len(ids) == 0 {
 		return bm.ValidationError("ids list is empty")
