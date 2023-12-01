@@ -20,6 +20,7 @@ type (
 	flags struct {
 		Action        *string
 		ID            *int64
+		IDs           *string
 		Title         *string
 		Author        *string
 		PublishedDate *string
@@ -28,7 +29,7 @@ type (
 		Genre         *string
 		CollectionID  *int64
 		CollectionsID *string
-		BooksID       *string
+		BookIDs       *string
 		Name          *string
 		StartDate     *string
 		FinishedDate  *string
@@ -60,7 +61,7 @@ func main() {
 		log.Fatal().Err(err).Msg("do request to unix-socket server")
 	}
 
-	log.Info().Any("result", resp).Msg("success")
+	log.Info().Any("result", resp).Msg("result")
 }
 
 func parseFlags() *flags {
@@ -68,6 +69,7 @@ func parseFlags() *flags {
 
 	f.Action = flag.String("action", "", "API action")
 	f.ID = flag.Int64("id", 0, "ID")
+	f.IDs = flag.String("ids", "", "IDs")
 	f.Title = flag.String("title", "", "Title")
 	f.Author = flag.String("author", "", "Author")
 	f.PublishedDate = flag.String("published_date", "", "Published date (format: '2006-01-02')")
@@ -76,7 +78,7 @@ func parseFlags() *flags {
 	f.Genre = flag.String("genre", "", "Genre")
 	f.CollectionID = flag.Int64("collection_id", 0, "Collection ID")
 	f.CollectionsID = flag.String("collections_id", "", "Collections ID")
-	f.BooksID = flag.String("books_id", "", "Book IDs")
+	f.BookIDs = flag.String("book_ids", "", "Book IDs")
 	f.Name = flag.String("name", "", "Name")
 	f.StartDate = flag.String("start_date", "", "Start date (format: '2006-01-02')")
 	f.FinishedDate = flag.String("finished_date", "", "Finished date (format: '2006-01-02')")
@@ -190,9 +192,13 @@ func (f *flags) toCreateBookReq() (*api.CreateBookReq, error) {
 }
 
 func (f *flags) toUpdateBookReq() (*api.UpdateBookReq, error) {
-	publishedDate, err := parseTime(f.PublishedDate)
-	if err != nil {
-		return nil, fmt.Errorf("parse published date: %w", err)
+	var publishedDate time.Time
+	var err error
+	if f.PublishedDate != nil && *f.PublishedDate != "" {
+		publishedDate, err = parseTime(f.PublishedDate)
+		if err != nil {
+			return nil, fmt.Errorf("parse published date: %w", err)
+		}
 	}
 
 	return &api.UpdateBookReq{
@@ -207,19 +213,30 @@ func (f *flags) toUpdateBookReq() (*api.UpdateBookReq, error) {
 }
 
 func (f *flags) toDeleteBooksReq() (*api.DeleteBooksReq, error) {
-	if f.ID == nil {
-		return nil, fmt.Errorf("ID is required for delete_books action")
+	ids := make([]int64, 0)
+	for _, idStr := range strings.Split(*f.IDs, ",") {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
+		}
+
+		ids = append(ids, id)
 	}
 
 	return &api.DeleteBooksReq{
-		IDs: []int64{*f.ID},
+		IDs: ids,
 	}, nil
 }
 
 func (f *flags) toGetCollectionsReq() (*api.GetCollectionsReq, error) {
-	ids, err := toArray(toValue(f.CollectionsID))
-	if err != nil {
-		return nil, fmt.Errorf("parse ids: %w", err)
+	ids := make([]int64, 0)
+	for _, idStr := range strings.Split(*f.IDs, ",") {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
+		}
+
+		ids = append(ids, id)
 	}
 
 	return &api.GetCollectionsReq{
@@ -247,31 +264,47 @@ func (f *flags) toUpdateCollectionReq() (*api.UpdateCollectionReq, error) {
 }
 
 func (f *flags) toDeleteCollectionReq() (*api.DeleteCollectionReq, error) {
-	cid := toValue(f.CollectionID)
-	if cid == 0 {
+	id := toValue(f.ID)
+	if id == 0 {
 		return nil, fmt.Errorf("collection id is required")
 	}
 
 	return &api.DeleteCollectionReq{
-		ID: cid,
+		ID: id,
 	}, nil
 }
 
 func (f *flags) toCreateBooksCollectionReq() (*api.CreateBooksCollectionReq, error) {
-	if f.CollectionID == nil || f.ID == nil {
+	bookIDs := make([]int64, 0)
+	for _, idStr := range strings.Split(*f.BookIDs, ",") {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
+		}
+
+		bookIDs = append(bookIDs, id)
+	}
+
+	cid := toValue(f.CollectionID)
+	if cid <= 0 || len(bookIDs) == 0 {
 		return nil, fmt.Errorf("CollectionID and BookID are required for create_books_collection action")
 	}
 
 	return &api.CreateBooksCollectionReq{
-		CID:     toValue(f.CollectionID),
-		BookIDs: []int64{*f.ID},
+		CID:     cid,
+		BookIDs: bookIDs,
 	}, nil
 }
 
 func (f *flags) toDeleteBooksCollectionReq() (*api.DeleteBooksCollectionReq, error) {
-	bookIDs, err := toArray(toValue(f.BooksID))
-	if err != nil {
-		return nil, fmt.Errorf("book ids are required")
+	bookIDs := make([]int64, 0)
+	for _, idStr := range strings.Split(*f.BookIDs, ",") {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
+		}
+
+		bookIDs = append(bookIDs, id)
 	}
 
 	if f.CollectionID == nil || len(bookIDs) == 0 {

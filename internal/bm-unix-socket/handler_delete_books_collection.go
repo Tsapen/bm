@@ -8,7 +8,7 @@ import (
 )
 
 func (b *serviceBundle) deleteBooksCollection(ctx context.Context, r *api.DeleteBooksCollectionReq) (*api.DeleteBooksCollectionResp, error) {
-	err := b.bookService.CreateBooksCollection(ctx, r.CID, r.BookIDs)
+	err := b.bookService.DeleteBooksCollection(ctx, r.CID, r.BookIDs)
 	if err != nil {
 		return nil, fmt.Errorf("delete books collection: %w", err)
 	}

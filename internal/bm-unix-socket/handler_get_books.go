@@ -10,9 +10,12 @@ import (
 
 func (b *serviceBundle) getBooks(ctx context.Context, r *api.GetBooksReq) (*api.GetBooksResp, error) {
 	f := bm.BookFilter{
+		ID:           r.ID,
 		Author:       r.Author,
 		Genre:        r.Genre,
 		CollectionID: r.CollectionID,
+		StartDate:    r.StartDate,
+		FinishDate:   r.FinishDate,
 		OrderBy:      r.OrderBy,
 		Desc:         r.Desc,
 		Page:         r.Page,

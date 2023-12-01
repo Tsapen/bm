@@ -41,12 +41,12 @@ func NewServer(cfg Config, bookService *bs.Service) (*Server, error) {
 	r = r.PathPrefix("/api/v1").Subrouter()
 	r.HandleFunc("/books", handleFunc(parseGetBooksReq, b.getBooks)).Methods(http.MethodGet)
 	r.HandleFunc("/book", handleFunc(parseJSONReq[api.CreateBookReq], b.createBook)).Methods(http.MethodPost)
-	r.HandleFunc("/book/update", handleFunc(parseJSONReq[api.UpdateBookReq], b.updateBook)).Methods(http.MethodPost)
+	r.HandleFunc("/book", handleFunc(parseJSONReq[api.UpdateBookReq], b.updateBook)).Methods(http.MethodPut)
 	r.HandleFunc("/books", handleFunc(parseJSONReq[api.DeleteBooksReq], b.deleteBooks)).Methods(http.MethodDelete)
 
 	r.HandleFunc("/collections", handleFunc(parseGetCollectionsReq, b.getCollections)).Methods(http.MethodGet)
 	r.HandleFunc("/collection", handleFunc(parseJSONReq[api.CreateCollectionReq], b.createCollection)).Methods(http.MethodPost)
-	r.HandleFunc("/collection/update", handleFunc(parseJSONReq[api.UpdateCollectionReq], b.updateCollection)).Methods(http.MethodPost)
+	r.HandleFunc("/collection", handleFunc(parseJSONReq[api.UpdateCollectionReq], b.updateCollection)).Methods(http.MethodPut)
 	r.HandleFunc("/collection", handleFunc(parseJSONReq[api.DeleteCollectionReq], b.deleteCollection)).Methods(http.MethodDelete)
 
 	r.HandleFunc("/collection/books", handleFunc(parseJSONReq[api.CreateBooksCollectionReq], b.createBooksCollection)).Methods(http.MethodPost)

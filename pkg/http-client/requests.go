@@ -16,13 +16,11 @@ import (
 )
 
 const (
-	booksPath            = "/api/v1/books"
-	bookPath             = "/api/v1/book"
-	updateBookPath       = "/api/v1/book/update"
-	collectionsPath      = "/api/v1/collections"
-	collectionPath       = "/api/v1/collection"
-	collectionUpdatePath = "/api/v1/collection/update"
-	booksCollectionPath  = "/api/v1/collection/books"
+	booksPath           = "/api/v1/books"
+	bookPath            = "/api/v1/book"
+	collectionsPath     = "/api/v1/collections"
+	collectionPath      = "/api/v1/collection"
+	booksCollectionPath = "/api/v1/collection/books"
 )
 
 func (c *Client) GetBooks(ctx context.Context, req *api.GetBooksReq) (*api.GetBooksResp, error) {
@@ -47,7 +45,7 @@ func (c *Client) CreateBook(ctx context.Context, req *api.CreateBookReq) (*api.C
 
 func (c *Client) UpdateBook(ctx context.Context, req *api.UpdateBookReq) (*api.UpdateBookResp, error) {
 	resp := new(api.UpdateBookResp)
-	err := c.doRequestWithJSON(ctx, updateBookPath, http.MethodPost, req, resp)
+	err := c.doRequestWithJSON(ctx, bookPath, http.MethodPut, req, resp)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
@@ -87,7 +85,7 @@ func (c *Client) CreateCollection(ctx context.Context, req *api.CreateCollection
 
 func (c *Client) UpdateCollection(ctx context.Context, req *api.UpdateCollectionReq) (*api.UpdateCollectionResp, error) {
 	resp := new(api.UpdateCollectionResp)
-	err := c.doRequestWithJSON(ctx, collectionUpdatePath, http.MethodPost, req, resp)
+	err := c.doRequestWithJSON(ctx, collectionPath, http.MethodPut, req, resp)
 	if err != nil {
 		return nil, fmt.Errorf("do request: %w", err)
 	}
