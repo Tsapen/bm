@@ -12,73 +12,64 @@ import (
 )
 
 func parseGetBooksReq(r *http.Request) (*api.GetBooksReq, error) {
-	var startDate, finishDate time.Time
-	var desc bool
-	var id, cID, page, pageSize int64
-	var err error
-
 	q := r.URL.Query()
+	req := &api.GetBooksReq{
+		Author:  q.Get("author"),
+		Genre:   q.Get("genre"),
+		OrderBy: q.Get("order_by"),
+	}
+
+	var err error
 	if idStr := q.Get("id"); idStr != "" {
-		id, err = strconv.ParseInt(idStr, 10, 64)
+		req.ID, err = strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect id: %w", err)
 		}
 	}
 
 	if cidStr := q.Get("collection_id"); cidStr != "" {
-		cID, err = strconv.ParseInt(cidStr, 10, 64)
+		req.CollectionID, err = strconv.ParseInt(cidStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect collection_id: %w", err)
 		}
 	}
 
 	if startDateStr := q.Get("start_date"); startDateStr != "" {
-		startDate, err = time.Parse(time.DateOnly, startDateStr)
+		req.StartDate, err = time.Parse(time.DateOnly, startDateStr)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect start_date: %w", err)
 		}
 	}
 
 	if finishDateStr := q.Get("finish_date"); finishDateStr != "" {
-		finishDate, err = time.Parse(time.DateOnly, finishDateStr)
+		req.FinishDate, err = time.Parse(time.DateOnly, finishDateStr)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect finish_date: %w", err)
 		}
 	}
 
 	if descStr := q.Get("desc"); descStr != "" {
-		desc, err = strconv.ParseBool(descStr)
+		req.Desc, err = strconv.ParseBool(descStr)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect desc: %w", err)
 		}
 	}
 
 	if pageStr := q.Get("page"); pageStr != "" {
-		page, err = strconv.ParseInt(pageStr, 10, 64)
+		req.Page, err = strconv.ParseInt(pageStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect page: %w", err)
 		}
 	}
 
 	if pageSizeStr := q.Get("page_size"); pageSizeStr != "" {
-		pageSize, err = strconv.ParseInt(pageSizeStr, 10, 64)
+		req.PageSize, err = strconv.ParseInt(pageSizeStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect page_size: %w", err)
 		}
 	}
 
-	return &api.GetBooksReq{
-		ID:           id,
-		Author:       q.Get("author"),
-		Genre:        q.Get("genre"),
-		StartDate:    startDate,
-		FinishDate:   finishDate,
-		CollectionID: cID,
-		OrderBy:      q.Get("order_by"),
-		Desc:         desc,
-		Page:         page,
-		PageSize:     pageSize,
-	}, nil
+	return req, nil
 }
 
 func (b *serviceBundle) getBooks(ctx context.Context, r *api.GetBooksReq) (*api.GetBooksResp, error) {

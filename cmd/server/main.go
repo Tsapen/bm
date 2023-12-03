@@ -4,7 +4,6 @@ import (
 	"github.com/rs/zerolog/log"
 
 	bmhttp "github.com/Tsapen/bm/internal/bm-http"
-	bmus "github.com/Tsapen/bm/internal/bm-unix-socket"
 	bs "github.com/Tsapen/bm/internal/book-service"
 	"github.com/Tsapen/bm/internal/config"
 	"github.com/Tsapen/bm/internal/migrator"
@@ -28,19 +27,18 @@ func main() {
 
 	bookService := bs.New(db)
 
-	unixSocketServer, err := bmus.NewServer(bmus.Config(*cfg.UnixSocketCfg), bookService)
-	if err != nil {
-		log.Fatal().Err(err).Msg("init unix socket server")
-	}
-
-	go unixSocketServer.Start()
-
 	httpService, err := bmhttp.NewServer(bmhttp.Config(*cfg.HTTPCfg), bookService)
 	if err != nil {
 		log.Fatal().Err(err).Msg("init http server")
 	}
 
-	if err = httpService.Start(); err != nil {
-		log.Fatal().Err(err).Msg("run http server")
+	go func() {
+		if err = httpService.StartUnixSocketServer(); err != nil {
+			log.Fatal().Err(err).Msg("run unix socket server server")
+		}
+	}()
+
+	if err = httpService.StartTCPServer(); err != nil {
+		log.Fatal().Err(err).Msg("run tcp server")
 	}
 }

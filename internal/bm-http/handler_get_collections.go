@@ -12,16 +12,15 @@ import (
 )
 
 func parseGetCollectionsReq(r *http.Request) (*api.GetCollectionsReq, error) {
-	var desc bool
-	var page, pageSize int64
-	var err error
-	var ids []int64
-
 	q := r.URL.Query()
+	req := &api.GetCollectionsReq{
+		OrderBy: q.Get("order_by"),
+	}
 
+	var err error
 	if idsParam := q.Get("ids"); len(idsParam) > 0 {
 		idStrs := strings.Split(idsParam, ",")
-		ids = make([]int64, 0, len(idStrs))
+		ids := make([]int64, 0, len(idStrs))
 		for _, idStr := range idStrs {
 			id, err := strconv.ParseInt(idStr, 10, 64)
 			if err != nil {
@@ -30,36 +29,32 @@ func parseGetCollectionsReq(r *http.Request) (*api.GetCollectionsReq, error) {
 
 			ids = append(ids, id)
 		}
+
+		req.IDs = ids
 	}
 
 	if descStr := q.Get("desc"); descStr != "" {
-		desc, err = strconv.ParseBool(descStr)
+		req.Desc, err = strconv.ParseBool(descStr)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect desc: %w", err)
 		}
 	}
 
 	if pageStr := q.Get("page"); pageStr != "" {
-		page, err = strconv.ParseInt(pageStr, 10, 64)
+		req.Page, err = strconv.ParseInt(pageStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect page: %w", err)
 		}
 	}
 
 	if pageSizeStr := q.Get("page_size"); pageSizeStr != "" {
-		pageSize, err = strconv.ParseInt(pageSizeStr, 10, 64)
+		req.PageSize, err = strconv.ParseInt(pageSizeStr, 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("incorrect page_size: %w", err)
 		}
 	}
 
-	return &api.GetCollectionsReq{
-		IDs:      ids,
-		OrderBy:  q.Get("order_by"),
-		Desc:     desc,
-		Page:     page,
-		PageSize: pageSize,
-	}, nil
+	return req, nil
 }
 
 func (b *serviceBundle) getCollections(ctx context.Context, r *api.GetCollectionsReq) (*api.GetCollectionsResp, error) {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"time"
 
@@ -19,11 +20,13 @@ import (
 type Server struct {
 	cfg Config
 
-	httpServer *http.Server
+	tcpServer        *http.Server
+	unixSocketServer *http.Server
 }
 
 type Config struct {
 	Addr         string
+	SocketPath   string
 	ConnMaxCount int
 	Timeout      time.Duration
 }
@@ -54,8 +57,13 @@ func NewServer(cfg Config, bookService *bs.Service) (*Server, error) {
 
 	var s = &Server{
 		cfg: cfg,
-		httpServer: &http.Server{
+		tcpServer: &http.Server{
 			Addr:         cfg.Addr,
+			Handler:      r,
+			ReadTimeout:  cfg.Timeout,
+			WriteTimeout: cfg.Timeout,
+		},
+		unixSocketServer: &http.Server{
 			Handler:      r,
 			ReadTimeout:  cfg.Timeout,
 			WriteTimeout: cfg.Timeout,
@@ -95,11 +103,23 @@ func handleFunc[Req, Resp any](
 	}
 }
 
-// Start runs server.
-func (s *Server) Start() error {
-	log.Info().Msgf("HTTP server started to listen %s", s.cfg.Addr)
+// Start runs server with tcp as transport.
+func (s *Server) StartTCPServer() error {
+	log.Info().Msgf("HTTP server (tcp) started to listen %s", s.cfg.Addr)
 
-	return s.httpServer.ListenAndServe()
+	return s.tcpServer.ListenAndServe()
+}
+
+// Start runs server with unix-socket as transport.
+func (s *Server) StartUnixSocketServer() error {
+	log.Info().Msgf("HTTP server (unix-socket) started to listen %s", s.cfg.Addr)
+
+	unixListener, err := net.Listen("unix", s.cfg.SocketPath)
+	if err != nil {
+		return err
+	}
+
+	return s.unixSocketServer.Serve(unixListener)
 }
 
 func parseJSONReq[Req any](r *http.Request) (*Req, error) {

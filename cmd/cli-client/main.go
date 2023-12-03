@@ -1,19 +1,18 @@
 package main
 
 import (
-	"encoding/json"
+	"context"
 	"flag"
 	"fmt"
-	"net"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/rs/zerolog/log"
 
-	"github.com/Tsapen/bm/internal/bm"
 	bmconfig "github.com/Tsapen/bm/internal/config"
 	"github.com/Tsapen/bm/pkg/api"
+	httpclient "github.com/Tsapen/bm/pkg/http-client"
 )
 
 type (
@@ -28,7 +27,6 @@ type (
 		Description   *string
 		Genre         *string
 		CollectionID  *int64
-		CollectionsID *string
 		BookIDs       *string
 		Name          *string
 		StartDate     *string
@@ -39,11 +37,28 @@ type (
 		PageSize      *int64
 	}
 
-	command struct {
-		Action string `json:"action"`
-		Data   any    `json:"data"`
+	config struct {
+		SocketPath string
+		Timeout    time.Duration
+	}
+
+	cliClient struct {
+		cfg        config
+		httpClient *httpclient.Client
 	}
 )
+
+func newClient(cfg config) *cliClient {
+	return &cliClient{
+		cfg: cfg,
+		httpClient: httpclient.New(httpclient.Config{
+			Address:    "http://localhost",
+			SocketPath: cfg.SocketPath,
+			Timeout:    cfg.Timeout,
+		}),
+	}
+
+}
 
 func main() {
 	cfg, err := bmconfig.GetForCLIClient()
@@ -51,14 +66,12 @@ func main() {
 		log.Fatal().Err(err).Msg("read config")
 	}
 
-	cmd, err := getCommand()
-	if err != nil {
-		log.Fatal().Err(err).Msg("get command")
-	}
+	f := parseFlags()
+	ctx := context.Background()
 
-	resp, err := newClient(config(*cfg.UnixSocketCfg)).doRequest(cmd)
+	resp, err := newClient(config(*cfg)).process(ctx, f)
 	if err != nil {
-		log.Fatal().Err(err).Msg("do request to unix-socket server")
+		log.Fatal().Err(err).Msg("process command")
 	}
 
 	log.Info().Any("result", resp).Msg("result")
@@ -77,7 +90,6 @@ func parseFlags() *flags {
 	f.Description = flag.String("description", "", "Description")
 	f.Genre = flag.String("genre", "", "Genre")
 	f.CollectionID = flag.Int64("collection_id", 0, "Collection ID")
-	f.CollectionsID = flag.String("collections_id", "", "Collections ID")
 	f.BookIDs = flag.String("book_ids", "", "Book IDs")
 	f.Name = flag.String("name", "", "Name")
 	f.StartDate = flag.String("start_date", "", "Start date (format: '2006-01-02')")
@@ -92,55 +104,55 @@ func parseFlags() *flags {
 	return f
 }
 
-func getCommand() (*command, error) {
-	f := parseFlags()
-
-	action := *f.Action
-	var data any
-	var err error
-	switch action {
+func (c *cliClient) process(ctx context.Context, f *flags) (any, error) {
+	switch *f.Action {
 	case "get_books":
-		data, err = f.toGetBooksReq()
+		return doRequest(ctx, f.toGetBooksReq, c.httpClient.GetBooks)
 
 	case "create_book":
-		data, err = f.toCreateBookReq()
+		return doRequest(ctx, f.toCreateBookReq, c.httpClient.CreateBook)
 
 	case "update_book":
-		data, err = f.toUpdateBookReq()
+		return doRequest(ctx, f.toUpdateBookReq, c.httpClient.UpdateBook)
 
 	case "delete_books":
-		data, err = f.toDeleteBooksReq()
+		return doRequest(ctx, f.toDeleteBooksReq, c.httpClient.DeleteBooks)
 
 	case "get_collections":
-		data, err = f.toGetCollectionsReq()
+		return doRequest(ctx, f.toGetCollectionsReq, c.httpClient.GetCollections)
 
 	case "create_collection":
-		data, err = f.toCreateCollectionReq()
+		return doRequest(ctx, f.toCreateCollectionReq, c.httpClient.CreateCollection)
 
 	case "update_collection":
-		data, err = f.toUpdateCollectionReq()
+		return doRequest(ctx, f.toUpdateCollectionReq, c.httpClient.UpdateCollection)
 
 	case "delete_collection":
-		data, err = f.toDeleteCollectionReq()
+		return doRequest(ctx, f.toDeleteCollectionReq, c.httpClient.DeleteCollection)
 
 	case "create_books_collection":
-		data, err = f.toCreateBooksCollectionReq()
+		return doRequest(ctx, f.toCreateBooksCollectionReq, c.httpClient.CreateBooksCollection)
 
 	case "delete_books_collection":
-		data, err = f.toDeleteBooksCollectionReq()
+		return doRequest(ctx, f.toDeleteBooksCollectionReq, c.httpClient.DeleteBooksCollection)
 
 	default:
-		return nil, fmt.Errorf("unknown command: '%s'", action)
+		return nil, fmt.Errorf("unknown command: '%s'", *f.Action)
 	}
+}
 
+func doRequest[Req, Resp any](ctx context.Context, toReq func() (Req, error), doReq func(context.Context, Req) (Resp, error)) (any, error) {
+	req, err := toReq()
 	if err != nil {
-		return nil, fmt.Errorf("construct command: %w", err)
+		return nil, fmt.Errorf("convert to request: %w", err)
 	}
 
-	return &command{
-		Action: action,
-		Data:   data,
-	}, nil
+	resp, err := doReq(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("do request: %w", err)
+	}
+
+	return resp, nil
 }
 
 func (f *flags) toGetBooksReq() (*api.GetBooksReq, error) {
@@ -330,22 +342,6 @@ func parseTime(dateStr *string) (time.Time, error) {
 	return parsedTime, nil
 }
 
-func toArray(ids string) ([]int64, error) {
-	values := strings.Split(ids, ",")
-
-	result := make([]int64, 0, len(values))
-	for _, v := range values {
-		id, err := strconv.ParseInt(v, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("convert '%s' to int64: %w", v, err)
-		}
-
-		result = append(result, id)
-	}
-
-	return result, nil
-}
-
 func toValue[T any](ptr *T) T {
 	if ptr != nil {
 		return *ptr
@@ -354,44 +350,4 @@ func toValue[T any](ptr *T) T {
 	var v T
 
 	return v
-}
-
-type (
-	config struct {
-		SocketPath   string
-		ConnMaxCount int64
-		Timeout      time.Duration
-	}
-
-	cliClient struct {
-		cfg config
-	}
-)
-
-func newClient(cfg config) *cliClient {
-	return &cliClient{
-		cfg: cfg,
-	}
-}
-
-func (c *cliClient) doRequest(req any) (resp any, err error) {
-	conn, err := net.Dial("unix", c.cfg.SocketPath)
-	if err != nil {
-		return nil, fmt.Errorf("make connection: %w", err)
-	}
-
-	defer func() {
-		err = bm.HandleErrPair(conn.Close(), err)
-	}()
-
-	if err = json.NewEncoder(conn).Encode(req); err != nil {
-		return nil, fmt.Errorf("write data: %w", err)
-	}
-
-	resp = new(any)
-	if err = json.NewDecoder(conn).Decode(resp); err != nil {
-		return "", fmt.Errorf("get response: %w", err)
-	}
-
-	return resp, nil
 }

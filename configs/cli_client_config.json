@@ -1,7 +1,4 @@
 {
-    "unix_socket": {
-        "socket_path": "/socket/socket.sock",
-        "connections_max_count": 100,
-        "timeout": "5s"
-    }
+    "socket_path": "/socket/socket.sock",
+    "timeout": "5s"
 }

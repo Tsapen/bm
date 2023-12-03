@@ -29,45 +29,15 @@ type cliClientEnvs struct {
 }
 
 type ServerConfig struct {
-	UnixSocketCfg *UnixSocketCfg `json:"unix_socket"`
-	HTTPCfg       *HTTPCfg       `json:"http"`
-	DB            *DBCfg         `json:"db"`
+	HTTPCfg *HTTPCfg `json:"http"`
+	DB      *DBCfg   `json:"db"`
 
 	MigrationsPath string `json:"-"`
 }
 
-type UnixSocketCfg struct {
-	SocketPath   string `json:"socket_path"`
-	ConnMaxCount int64  `json:"connections_max_count"`
-
-	Timeout time.Duration `json:"-"`
-}
-
-func (c *UnixSocketCfg) UnmarshalJSON(data []byte) error {
-	type Alias UnixSocketCfg
-	aux := &struct {
-		Timeout string `json:"timeout"`
-		*Alias
-	}{
-		Alias: (*Alias)(c),
-	}
-
-	if err := json.Unmarshal(data, &aux); err != nil {
-		return fmt.Errorf("parse config: %w", err)
-	}
-
-	duration, err := time.ParseDuration(aux.Timeout)
-	if err != nil {
-		return fmt.Errorf("parse timeout: %w", err)
-	}
-
-	c.Timeout = duration
-
-	return nil
-}
-
 type HTTPCfg struct {
 	Addr         string `json:"address"`
+	SocketPath   string `json:"socket_path"`
 	ConnMaxCount int    `json:"connections_max_count"`
 
 	Timeout time.Duration `json:"-"`
@@ -135,7 +105,31 @@ func (c *HTTPClientConfig) UnmarshalJSON(data []byte) error {
 }
 
 type CLIClientConfig struct {
-	UnixSocketCfg *UnixSocketCfg `json:"unix_socket"`
+	SocketPath string        `json:"socket_path"`
+	Timeout    time.Duration `json:"-"`
+}
+
+func (c *CLIClientConfig) UnmarshalJSON(data []byte) error {
+	type Alias CLIClientConfig
+	aux := &struct {
+		Timeout string `json:"timeout"`
+		*Alias
+	}{
+		Alias: (*Alias)(c),
+	}
+
+	if err := json.Unmarshal(data, &aux); err != nil {
+		return fmt.Errorf("parse config: %w", err)
+	}
+
+	duration, err := time.ParseDuration(aux.Timeout)
+	if err != nil {
+		return fmt.Errorf("parse timeout: %w", err)
+	}
+
+	c.Timeout = duration
+
+	return nil
 }
 
 func GetForServer() (*ServerConfig, error) {

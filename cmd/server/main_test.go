@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"os"
 	"testing"
 	"time"
 
@@ -20,10 +19,6 @@ import (
 	httpclient "github.com/Tsapen/bm/pkg/http-client"
 )
 
-func TestMain(m *testing.M) {
-	os.Exit(m.Run())
-}
-
 func TestBM(t *testing.T) {
 	serverCfg, err := config.GetForServer()
 	if err != nil {
@@ -35,7 +30,10 @@ func TestBM(t *testing.T) {
 		t.Fatalf("read client configs: %v\n", err)
 	}
 
-	client := httpclient.New(httpclient.Config(*clientCfg))
+	client := httpclient.New(httpclient.Config{
+		Address: clientCfg.Address,
+		Timeout: clientCfg.Timeout,
+	})
 
 	db, err := postgres.New(postgres.Config(*serverCfg.DB))
 	if err != nil {
@@ -56,8 +54,8 @@ func TestBM(t *testing.T) {
 	}
 
 	go func() {
-		if err = httpService.Start(); err != nil {
-			t.Logf("run http server: %v\n", err)
+		if err = httpService.StartTCPServer(); err != nil {
+			t.Logf("run tcp server: %v\n", err)
 		}
 	}()
 
@@ -71,11 +69,7 @@ func waitRunning(t *testing.T, client *httpclient.Client) {
 	const maxDelay = 100 * time.Millisecond
 
 	ctx := context.Background()
-	req := &api.GetBooksReq{
-		Genre:    "horror",
-		Page:     1,
-		PageSize: 1,
-	}
+	req := &api.GetBooksReq{}
 	for i := 0; i < checkNum; i++ {
 		time.Sleep(maxDelay)
 
