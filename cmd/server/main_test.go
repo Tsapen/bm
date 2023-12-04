@@ -2,28 +2,16 @@ package main
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
-	"github.com/rs/zerolog/log"
-
 	bmtest "github.com/Tsapen/bm/cmd/server/bm-test"
-	bmhttp "github.com/Tsapen/bm/internal/bm-http"
-	bs "github.com/Tsapen/bm/internal/book-service"
 	"github.com/Tsapen/bm/internal/config"
-	"github.com/Tsapen/bm/internal/migrator"
-	"github.com/Tsapen/bm/internal/postgres"
 	"github.com/Tsapen/bm/pkg/api"
 	httpclient "github.com/Tsapen/bm/pkg/http-client"
 )
 
 func TestBM(t *testing.T) {
-	serverCfg, err := config.GetForServer()
-	if err != nil {
-		t.Fatalf("read server configs: %v\n", err)
-	}
-
 	clientCfg, err := config.GetForHTTPClient()
 	if err != nil {
 		t.Fatalf("read client configs: %v\n", err)
@@ -33,28 +21,6 @@ func TestBM(t *testing.T) {
 		Address: clientCfg.Address,
 		Timeout: clientCfg.Timeout,
 	})
-
-	db, err := postgres.New(postgres.Config(*serverCfg.DB))
-	if err != nil {
-		t.Fatalf("init storage: %v\n", err)
-	}
-
-	if err = migrator.ApplyMigrations(serverCfg.MigrationsPath, db.DB.DB); err != nil {
-		log.Fatal().Err(err).Msg("apply migrations")
-	}
-
-	bookService := bs.New(db)
-
-	httpService, err := bmhttp.NewServer(bmhttp.Config(*serverCfg.HTTPCfg), bookService)
-	if err != nil {
-		t.Fatalf("init http server: %v\n", err)
-	}
-
-	go func() {
-		if err = httpService.StartTCPServer(); err != nil {
-			t.Logf("run tcp server: %v\n", err)
-		}
-	}()
 
 	waitRunning(t, client)
 
@@ -76,15 +42,4 @@ func waitRunning(t *testing.T, client *httpclient.Client) {
 	}
 
 	t.Fatalf("service could not start")
-}
-
-func dbAddr(c *config.DBCfg) string {
-	return fmt.Sprintf(
-		"user=%s password=%s host=%s port=%s dbname=%s sslmode=disable",
-		c.UserName,
-		c.Password,
-		c.HostName,
-		c.Port,
-		c.VirtualHost,
-	)
 }

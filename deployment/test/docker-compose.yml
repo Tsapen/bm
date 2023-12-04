@@ -13,9 +13,9 @@ services:
     networks:
       - bm-test-network
 
-  test-bm:
+  test-bm-instance:
     build:
-      dockerfile: deployment/test/Dockerfile.test
+      dockerfile: deployment/test/Dockerfile
       context: ../../
     environment:
       - BM_ROOT_DIR=/app
@@ -26,3 +26,17 @@ services:
       - bm-test-network
     depends_on:
       - test-postgres
+
+  test-bm:
+    build:
+      dockerfile: deployment/test/Dockerfile.test
+      context: ../../
+    environment:
+      - BM_ROOT_DIR=/app
+      - BM_SERVER_CONFIG=/configs/test_server_config.json
+      - BM_HTTP_CLIENT_CONFIG=/configs/test_http_client_config.json
+    networks:
+      - bm-test-network
+    depends_on:
+      - test-bm-instance
+
