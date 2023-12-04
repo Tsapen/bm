@@ -20,12 +20,6 @@ func parseGetBooksReq(r *http.Request) (*api.GetBooksReq, error) {
 	}
 
 	var err error
-	if idStr := q.Get("id"); idStr != "" {
-		req.ID, err = strconv.ParseInt(idStr, 10, 64)
-		if err != nil {
-			return nil, fmt.Errorf("incorrect id: %w", err)
-		}
-	}
 
 	if cidStr := q.Get("collection_id"); cidStr != "" {
 		req.CollectionID, err = strconv.ParseInt(cidStr, 10, 64)
@@ -72,9 +66,8 @@ func parseGetBooksReq(r *http.Request) (*api.GetBooksReq, error) {
 	return req, nil
 }
 
-func (b *serviceBundle) getBooks(ctx context.Context, r *api.GetBooksReq) (*api.GetBooksResp, error) {
+func (b *serviceBundle) getBooks(ctx context.Context, r *api.GetBooksReq) (any, error) {
 	f := bm.BookFilter{
-		ID:           r.ID,
 		Author:       r.Author,
 		Genre:        r.Genre,
 		CollectionID: r.CollectionID,

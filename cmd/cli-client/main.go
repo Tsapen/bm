@@ -4,33 +4,36 @@ import (
 	"context"
 	"flag"
 	"fmt"
+	"os"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/rs/zerolog/log"
 
 	bmconfig "github.com/Tsapen/bm/internal/config"
 	"github.com/Tsapen/bm/pkg/api"
 	httpclient "github.com/Tsapen/bm/pkg/http-client"
 )
 
+const (
+	formatDate = "2006-01-02"
+)
+
 type (
 	flags struct {
 		Action        *string
 		ID            *int64
-		IDs           *string
+		IDs           *ListValue
 		Title         *string
 		Author        *string
-		PublishedDate *string
+		PublishedDate *DateValue
 		Edition       *string
 		Description   *string
 		Genre         *string
 		CollectionID  *int64
-		BookIDs       *string
+		BookIDs       *ListValue
 		Name          *string
-		StartDate     *string
-		FinishedDate  *string
+		StartDate     *DateValue
+		FinishedDate  *DateValue
 		OrderBy       *string
 		Desc          *bool
 		Page          *int64
@@ -63,7 +66,8 @@ func newClient(cfg config) *cliClient {
 func main() {
 	cfg, err := bmconfig.GetForCLIClient()
 	if err != nil {
-		log.Fatal().Err(err).Msg("read config")
+		fmt.Fprintf(os.Stderr, "read config: %v\n", err)
+		os.Exit(1)
 	}
 
 	f := parseFlags()
@@ -71,29 +75,36 @@ func main() {
 
 	resp, err := newClient(config(*cfg)).process(ctx, f)
 	if err != nil {
-		log.Fatal().Err(err).Msg("process command")
+		fmt.Fprintf(os.Stderr, "process command: %v\n", err)
+		os.Exit(1)
 	}
 
-	log.Info().Any("result", resp).Msg("result")
+	fmt.Fprint(os.Stdout, resp)
+	os.Exit(0)
 }
 
 func parseFlags() *flags {
-	f := &flags{}
+	f := &flags{
+		IDs:          new(ListValue),
+		BookIDs:      new(ListValue),
+		StartDate:    new(DateValue),
+		FinishedDate: new(DateValue),
+	}
 
 	f.Action = flag.String("action", "", "API action")
 	f.ID = flag.Int64("id", 0, "ID")
-	f.IDs = flag.String("ids", "", "IDs")
+	flag.Var(f.IDs, "ids", "IDs")
 	f.Title = flag.String("title", "", "Title")
 	f.Author = flag.String("author", "", "Author")
-	f.PublishedDate = flag.String("published_date", "", "Published date (format: '2006-01-02')")
+	flag.Var(f.PublishedDate, "date", "Published date (format: '2006-01-02')")
 	f.Edition = flag.String("edition", "", "Edition")
 	f.Description = flag.String("description", "", "Description")
 	f.Genre = flag.String("genre", "", "Genre")
 	f.CollectionID = flag.Int64("collection_id", 0, "Collection ID")
-	f.BookIDs = flag.String("book_ids", "", "Book IDs")
+	flag.Var(f.BookIDs, "book_ids", "Book IDs")
 	f.Name = flag.String("name", "", "Name")
-	f.StartDate = flag.String("start_date", "", "Start date (format: '2006-01-02')")
-	f.FinishedDate = flag.String("finished_date", "", "Finished date (format: '2006-01-02')")
+	flag.Var(f.StartDate, "start_date", "Start date (format: '2006-01-02')")
+	flag.Var(f.FinishedDate, "finished_date", "Finished date (format: '2006-01-02')")
 	f.OrderBy = flag.String("order_by", "", "Order by")
 	f.Desc = flag.Bool("desc", false, "Sort in descending order")
 	f.Page = flag.Int64("page", 1, "Page number")
@@ -156,30 +167,12 @@ func doRequest[Req, Resp any](ctx context.Context, toReq func() (Req, error), do
 }
 
 func (f *flags) toGetBooksReq() (*api.GetBooksReq, error) {
-	var startDate, finishDate time.Time
-	var err error
-
-	if f.StartDate != nil {
-		startDate, err = parseTime(f.StartDate)
-		if err != nil {
-			return nil, fmt.Errorf("parse start date: %w", err)
-		}
-	}
-
-	if f.FinishedDate != nil {
-		finishDate, err = parseTime(f.FinishedDate)
-		if err != nil {
-			return nil, fmt.Errorf("parse finish date: %w", err)
-		}
-	}
-
 	return &api.GetBooksReq{
-		ID:           toValue(f.ID),
 		Author:       toValue(f.Author),
 		Genre:        toValue(f.Genre),
 		CollectionID: toValue(f.CollectionID),
-		StartDate:    startDate,
-		FinishDate:   finishDate,
+		StartDate:    f.StartDate.date(),
+		FinishDate:   f.FinishedDate.Date,
 		OrderBy:      toValue(f.OrderBy),
 		Desc:         toValue(f.Desc),
 		Page:         toValue(f.Page),
@@ -188,15 +181,10 @@ func (f *flags) toGetBooksReq() (*api.GetBooksReq, error) {
 }
 
 func (f *flags) toCreateBookReq() (*api.CreateBookReq, error) {
-	publishedDate, err := parseTime(f.PublishedDate)
-	if err != nil {
-		return nil, fmt.Errorf("parse published date: %w", err)
-	}
-
 	return &api.CreateBookReq{
 		Title:         toValue(f.Title),
 		Author:        toValue(f.Author),
-		PublishedDate: publishedDate,
+		PublishedDate: f.PublishedDate.date(),
 		Edition:       toValue(f.Edition),
 		Description:   toValue(f.Description),
 		Genre:         toValue(f.Genre),
@@ -204,20 +192,11 @@ func (f *flags) toCreateBookReq() (*api.CreateBookReq, error) {
 }
 
 func (f *flags) toUpdateBookReq() (*api.UpdateBookReq, error) {
-	var publishedDate time.Time
-	var err error
-	if f.PublishedDate != nil && *f.PublishedDate != "" {
-		publishedDate, err = parseTime(f.PublishedDate)
-		if err != nil {
-			return nil, fmt.Errorf("parse published date: %w", err)
-		}
-	}
-
 	return &api.UpdateBookReq{
 		ID:            toValue(f.ID),
 		Title:         toValue(f.Title),
 		Author:        toValue(f.Author),
-		PublishedDate: publishedDate,
+		PublishedDate: f.PublishedDate.date(),
 		Edition:       toValue(f.Edition),
 		Description:   toValue(f.Description),
 		Genre:         toValue(f.Genre),
@@ -225,34 +204,13 @@ func (f *flags) toUpdateBookReq() (*api.UpdateBookReq, error) {
 }
 
 func (f *flags) toDeleteBooksReq() (*api.DeleteBooksReq, error) {
-	ids := make([]int64, 0)
-	for _, idStr := range strings.Split(*f.IDs, ",") {
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil || id <= 0 {
-			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
-		}
-
-		ids = append(ids, id)
-	}
-
 	return &api.DeleteBooksReq{
-		IDs: ids,
+		IDs: f.IDs.IDs,
 	}, nil
 }
 
 func (f *flags) toGetCollectionsReq() (*api.GetCollectionsReq, error) {
-	ids := make([]int64, 0)
-	for _, idStr := range strings.Split(*f.IDs, ",") {
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil || id <= 0 {
-			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
-		}
-
-		ids = append(ids, id)
-	}
-
 	return &api.GetCollectionsReq{
-		IDs:      ids,
 		OrderBy:  toValue(f.OrderBy),
 		Desc:     toValue(f.Desc),
 		Page:     toValue(f.Page),
@@ -287,67 +245,93 @@ func (f *flags) toDeleteCollectionReq() (*api.DeleteCollectionReq, error) {
 }
 
 func (f *flags) toCreateBooksCollectionReq() (*api.CreateBooksCollectionReq, error) {
-	bookIDs := make([]int64, 0)
-	for _, idStr := range strings.Split(*f.BookIDs, ",") {
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil || id <= 0 {
-			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
-		}
-
-		bookIDs = append(bookIDs, id)
-	}
-
 	cid := toValue(f.CollectionID)
-	if cid <= 0 || len(bookIDs) == 0 {
+	if cid <= 0 || len(f.BookIDs.IDs) == 0 {
 		return nil, fmt.Errorf("CollectionID and BookID are required for create_books_collection action")
 	}
 
 	return &api.CreateBooksCollectionReq{
 		CID:     cid,
-		BookIDs: bookIDs,
+		BookIDs: f.BookIDs.IDs,
 	}, nil
 }
 
 func (f *flags) toDeleteBooksCollectionReq() (*api.DeleteBooksCollectionReq, error) {
-	bookIDs := make([]int64, 0)
-	for _, idStr := range strings.Split(*f.BookIDs, ",") {
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil || id <= 0 {
-			return nil, fmt.Errorf("incorrect book id: '%s'", idStr)
-		}
-
-		bookIDs = append(bookIDs, id)
-	}
-
-	if f.CollectionID == nil || len(bookIDs) == 0 {
+	if f.CollectionID == nil || len(f.BookIDs.IDs) == 0 {
 		return nil, fmt.Errorf("both of collection_id and book_ids are required")
 	}
 
 	return &api.DeleteBooksCollectionReq{
 		CID:     toValue(f.CollectionID),
-		BookIDs: bookIDs,
+		BookIDs: f.BookIDs.IDs,
 	}, nil
 }
 
-func parseTime(dateStr *string) (time.Time, error) {
-	if dateStr == nil || *dateStr == "" {
-		return time.Time{}, nil
-	}
-
-	parsedTime, err := time.Parse("2006-01-02", *dateStr)
-	if err != nil {
-		return time.Time{}, err
-	}
-
-	return parsedTime, nil
+type DateValue struct {
+	Date time.Time
 }
 
-func toValue[T any](ptr *T) T {
+func (v *DateValue) date() time.Time {
+	if v != nil {
+		return v.Date
+	}
+
+	return time.Time{}
+}
+
+func (v *DateValue) String() string {
+	if v != nil {
+		return v.Date.Format(formatDate)
+	}
+	return ""
+}
+
+func (v *DateValue) Set(str string) error {
+	t, err := time.Parse(formatDate, str)
+	if err != nil {
+		return err
+	}
+
+	v.Date = t
+
+	return nil
+}
+
+type ListValue struct {
+	IDs []int64
+}
+
+func (v *ListValue) String() string {
+	if v.IDs != nil {
+		return fmt.Sprint(v.IDs)
+	}
+	return ""
+}
+
+func (v *ListValue) Set(str string) error {
+	if str == "" {
+		return nil
+	}
+
+	ids := make([]int64, 0)
+	for _, idStr := range strings.Split(str, ",") {
+		id, err := strconv.ParseInt(idStr, 10, 64)
+		if err != nil || id <= 0 {
+			return fmt.Errorf("incorrect id: '%s'", idStr)
+		}
+
+		ids = append(ids, id)
+	}
+
+	v.IDs = ids
+
+	return nil
+}
+
+func toValue[T any](ptr *T) (v T) {
 	if ptr != nil {
 		return *ptr
 	}
 
-	var v T
-
-	return v
+	return
 }

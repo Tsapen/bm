@@ -7,7 +7,6 @@ import (
 
 type (
 	BookFilter struct {
-		ID           int64
 		Author       string
 		Genre        string
 		CollectionID int64
@@ -41,7 +40,6 @@ type (
 	}
 
 	CollectionsFilter struct {
-		IDs      []int64
 		OrderBy  string
 		Desc     bool
 		Page     int64
@@ -59,6 +57,9 @@ type (
 
 // Storage is a database interface.
 type Storage interface {
+	// Book retrieves a book by its id.
+	Book(ctx context.Context, id int64) (*Book, error)
+
 	// Books retrieves a list of books based on the provided filter criteria.
 	Books(ctx context.Context, f BookFilter) ([]Book, error)
 
@@ -70,6 +71,9 @@ type Storage interface {
 
 	// DeleteBooks deletes books based on their IDs.
 	DeleteBooks(ctx context.Context, ids []int64) error
+
+	// Collection retrieves a collection by its id.
+	Collection(ctx context.Context, id int64) (*Collection, error)
 
 	// Collections retrieves a list of collections based on the provided filter criteria.
 	Collections(ctx context.Context, f CollectionsFilter) ([]Collection, error)

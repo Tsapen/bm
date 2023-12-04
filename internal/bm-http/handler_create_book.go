@@ -2,12 +2,13 @@ package bmhttp
 
 import (
 	"context"
+	"fmt"
 
 	bm "github.com/Tsapen/bm/internal/bm"
 	"github.com/Tsapen/bm/pkg/api"
 )
 
-func (b *serviceBundle) createBook(ctx context.Context, r *api.CreateBookReq) (*api.CreateBookResp, error) {
+func (b *serviceBundle) createBook(ctx context.Context, r *api.CreateBookReq) (any, error) {
 	bookData := bm.Book{
 		Title:         r.Title,
 		Author:        r.Author,
@@ -19,7 +20,7 @@ func (b *serviceBundle) createBook(ctx context.Context, r *api.CreateBookReq) (*
 
 	id, err := b.bookService.CreateBook(ctx, bookData)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("create book: %w", err)
 	}
 
 	return &api.CreateBookResp{

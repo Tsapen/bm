@@ -31,10 +31,25 @@ func (s *DB) CreateBook(ctx context.Context, b bm.Book) (int64, error) {
 	).
 		Scan(&bookID)
 	if err != nil {
-		return 0, fmt.Errorf("insert book: %w", err)
+		return 0, bm.NewInternalError("insert book: %w", err)
 	}
 
 	return bookID, nil
+}
+
+// Book gets book by id.
+func (s *DB) Book(ctx context.Context, id int64) (*bm.Book, error) {
+	q := `SELECT id, title, author, published_date, edition, description, genre FROM books b 
+			WHERE id=$1
+	`
+
+	book := new(bm.Book)
+	err := s.GetContext(ctx, book, q, id)
+	if err != nil {
+		return nil, bm.NewInternalError("select book: %w", err)
+	}
+
+	return book, nil
 }
 
 func joinCollection(f bm.BookFilter) string {
@@ -48,11 +63,6 @@ func joinCollection(f bm.BookFilter) string {
 func booksWhereClause(f bm.BookFilter) (string, map[string]any) {
 	whereClauses := make([]string, 0)
 	params := make(map[string]any, 0)
-
-	if f.ID != 0 {
-		whereClauses = append(whereClauses, "b.id=:id ")
-		params["id"] = f.ID
-	}
 
 	if f.Author != "" {
 		whereClauses = append(whereClauses, "b.author=:author ")
@@ -114,7 +124,7 @@ func (s *DB) Books(ctx context.Context, f bm.BookFilter) ([]bm.Book, error) {
 
 	rows, err := s.NamedQueryContext(ctx, q, params)
 	if err != nil {
-		return nil, fmt.Errorf("select books: %w", err)
+		return nil, bm.NewInternalError("select books: %w", err)
 	}
 
 	defer func() {
@@ -123,7 +133,7 @@ func (s *DB) Books(ctx context.Context, f bm.BookFilter) ([]bm.Book, error) {
 
 	var books []bm.Book
 	if err = sqlx.StructScan(rows, &books); err != nil {
-		return nil, fmt.Errorf("copy data into struct: %w", err)
+		return nil, bm.NewInternalError("copy data into struct: %w", err)
 	}
 
 	return books, nil
@@ -142,16 +152,16 @@ func (s *DB) UpdateBook(ctx context.Context, b bm.Book) error {
 
 	result, err := s.DB.ExecContext(ctx, q, params...)
 	if err != nil {
-		return fmt.Errorf("update book: %w", err)
+		return bm.NewInternalError("update book: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("get the number of affected rows: %w", err)
+		return bm.NewInternalError("get the number of affected rows: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("book with ID %d not found", b.ID)
+		return bm.NewNotFoundError("book with ID %d not found", b.ID)
 	}
 
 	return nil
@@ -160,6 +170,19 @@ func (s *DB) UpdateBook(ctx context.Context, b bm.Book) error {
 func (s *DB) DeleteBooks(ctx context.Context, ids []int64) error {
 	q := `DELETE FROM books b WHERE id = ANY($1)`
 
-	_, err := s.ExecContext(ctx, q, pq.Array(ids))
-	return err
+	result, err := s.ExecContext(ctx, q, pq.Array(ids))
+	if err != nil {
+		return bm.NewInternalError("delete books: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return bm.NewInternalError("get the number of affected rows: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return bm.NewNotFoundError("book with ID %v not found", ids)
+	}
+
+	return nil
 }

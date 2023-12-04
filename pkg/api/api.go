@@ -7,8 +7,15 @@ import (
 )
 
 type (
+	GetBookReq struct {
+		ID int64 `json:"-"`
+	}
+
+	GetBookResp struct {
+		Book Book `json:"book"`
+	}
+
 	GetBooksReq struct {
-		ID           int64     `url:"id,omitempty" json:"id"`
 		Author       string    `url:"author,omitempty" json:"author"`
 		Genre        string    `url:"genre,omitempty" json:"genre"`
 		CollectionID int64     `url:"collection_id,omitempty" json:"collection_id"`
@@ -48,7 +55,7 @@ type (
 	}
 
 	UpdateBookReq struct {
-		ID            int64     `json:"id"`
+		ID            int64     `json:"-"`
 		Title         string    `json:"title"`
 		Author        string    `json:"author"`
 		PublishedDate time.Time `json:"published_date"`
@@ -58,7 +65,7 @@ type (
 	}
 
 	UpdateBookResp struct {
-		Success bool `json:"success"`
+		Success bool `json:"-"`
 	}
 
 	DeleteBooksReq struct {
@@ -66,15 +73,22 @@ type (
 	}
 
 	DeleteBooksResp struct {
-		Success bool `json:"success"`
+		Success bool `json:"-"`
+	}
+
+	GetCollectionReq struct {
+		ID int64 `json:"-"`
+	}
+
+	GetCollectionResp struct {
+		Collection Collection `json:"collection"`
 	}
 
 	GetCollectionsReq struct {
-		IDs      []int64 `url:"ids,omitempty" json:"ids"`
-		OrderBy  string  `url:"order_by,omitempty" json:"order_by"`
-		Desc     bool    `url:"desc,omitempty" json:"desc"`
-		Page     int64   `url:"page,omitempty" json:"page"`
-		PageSize int64   `url:"page_size,omitempty" json:"page_size"`
+		OrderBy  string `url:"order_by,omitempty" json:"order_by"`
+		Desc     bool   `url:"desc,omitempty" json:"desc"`
+		Page     int64  `url:"page,omitempty" json:"page"`
+		PageSize int64  `url:"page_size,omitempty" json:"page_size"`
 	}
 
 	Collection struct {
@@ -97,39 +111,39 @@ type (
 	}
 
 	UpdateCollectionReq struct {
-		ID          int64  `json:"id"`
+		ID          int64  `json:"-"`
 		Name        string `json:"name"`
 		Description string `json:"decription"`
 	}
 
 	UpdateCollectionResp struct {
-		Success bool `json:"success"`
+		Success bool `json:"-"`
 	}
 
 	DeleteCollectionReq struct {
-		ID int64 `json:"id"`
+		ID int64 `json:"-"`
 	}
 
 	DeleteCollectionResp struct {
-		Success bool `json:"success"`
+		Success bool `json:"-"`
 	}
 
 	CreateBooksCollectionReq struct {
-		CID     int64   `json:"collection_id"`
+		CID     int64   `json:"-"`
 		BookIDs []int64 `json:"book_ids"`
 	}
 
 	CreateBooksCollectionResp struct {
-		Success bool `json:"success"`
+		Success bool `json:"-"`
 	}
 
 	DeleteBooksCollectionReq struct {
-		CID     int64   `json:"collection_id"`
+		CID     int64   `json:"-"`
 		BookIDs []int64 `json:"books_ids"`
 	}
 
 	DeleteBooksCollectionResp struct {
-		Success bool `json:"success"`
+		Success bool `json:"-"`
 	}
 )
 
@@ -190,7 +204,6 @@ func (c *CreateBookReq) MarshalJSON() ([]byte, error) {
 
 func (u *UpdateBookReq) UnmarshalJSON(data []byte) error {
 	var aux struct {
-		ID            int64  `json:"id"`
 		Title         string `json:"title"`
 		Author        string `json:"author"`
 		PublishedDate string `json:"published_date"`
@@ -203,7 +216,6 @@ func (u *UpdateBookReq) UnmarshalJSON(data []byte) error {
 		return err
 	}
 
-	u.ID = aux.ID
 	u.Title = aux.Title
 	u.Author = aux.Author
 	u.Edition = aux.Edition
@@ -224,7 +236,6 @@ func (u *UpdateBookReq) UnmarshalJSON(data []byte) error {
 
 func (u *UpdateBookReq) MarshalJSON() ([]byte, error) {
 	aux := struct {
-		ID            int64  `json:"id"`
 		Title         string `json:"title"`
 		Author        string `json:"author"`
 		PublishedDate string `json:"published_date"`
@@ -232,7 +243,6 @@ func (u *UpdateBookReq) MarshalJSON() ([]byte, error) {
 		Description   string `json:"description"`
 		Genre         string `json:"genre"`
 	}{
-		ID:          u.ID,
 		Title:       u.Title,
 		Author:      u.Author,
 		Edition:     u.Edition,

@@ -78,16 +78,27 @@ func (s *storage) testBooks(ctx context.Context, t *testing.T, client *httpclien
 	}
 
 	// 2. Read testing.
+	getByIDTests := []struct {
+		give     *api.GetBookReq
+		wantBook *api.Book
+	}{
+		{
+			give: &api.GetBookReq{
+				ID: s.books[0].ID,
+			},
+			wantBook: s.books[0],
+		},
+	}
+	for _, tt := range getByIDTests {
+		got := getBook(ctx, t, client, tt.give)
+		assert.Equal(t, tt.wantBook.ID, got.Book.ID)
+		assert.Equal(t, tt.wantBook.Title, got.Book.Title)
+	}
+
 	filterTests := []struct {
 		give      *api.GetBooksReq
 		wantBooks []api.Book
 	}{
-		{
-			give: &api.GetBooksReq{
-				ID: s.books[0].ID,
-			},
-			wantBooks: []api.Book{*s.books[0]},
-		},
 		{
 			give: &api.GetBooksReq{
 				Author: s.books[1].Author,
@@ -176,9 +187,8 @@ func (s *storage) testBooks(ctx context.Context, t *testing.T, client *httpclien
 		assert.True(t, resp.Success)
 
 		want := req
-		got := getBooks(ctx, t, client, &api.GetBooksReq{ID: book.ID})
-		assert.Equal(t, 1, len(got.Books))
-		gotBook := got.Books[0]
+		got := getBook(ctx, t, client, &api.GetBookReq{ID: book.ID})
+		gotBook := got.Book
 		assert.Equal(t, want.Title, gotBook.Title)
 		assert.Equal(t, want.Author, gotBook.Author)
 		assert.Equal(t, want.PublishedDate.Truncate(24*time.Hour).String(), gotBook.PublishedDate.String())
@@ -317,16 +327,27 @@ func (s *storage) testCollections(ctx context.Context, t *testing.T, client *htt
 	}
 
 	// 2. Read testing.
+	getByIDTests := []struct {
+		give     *api.GetCollectionReq
+		wantBook *api.Collection
+	}{
+		{
+			give: &api.GetCollectionReq{
+				ID: s.books[0].ID,
+			},
+			wantBook: s.collections[0],
+		},
+	}
+	for _, tt := range getByIDTests {
+		got := getCollection(ctx, t, client, tt.give)
+		assert.Equal(t, tt.wantBook.ID, got.Collection.ID)
+		assert.Equal(t, tt.wantBook.Name, got.Collection.Name)
+	}
+
 	filterTests := []struct {
 		give            *api.GetCollectionsReq
 		wantCollections []api.Collection
 	}{
-		{
-			give: &api.GetCollectionsReq{
-				IDs: []int64{s.collections[0].ID},
-			},
-			wantCollections: []api.Collection{*s.collections[0]},
-		},
 		{
 			give: &api.GetCollectionsReq{
 				OrderBy:  "name",
@@ -334,7 +355,7 @@ func (s *storage) testCollections(ctx context.Context, t *testing.T, client *htt
 				Page:     2,
 				PageSize: 1,
 			},
-			wantCollections: []api.Collection{*s.collections[2]},
+			wantCollections: []api.Collection{*s.collections[1]},
 		},
 	}
 	for _, tt := range filterTests {
@@ -377,9 +398,8 @@ func (s *storage) testCollections(ctx context.Context, t *testing.T, client *htt
 		assert.True(t, resp.Success)
 
 		want := req
-		got := getCollections(ctx, t, client, &api.GetCollectionsReq{IDs: []int64{collection.ID}})
-		assert.Equal(t, 1, len(got.Collections))
-		gotCollection := got.Collections[0]
+		got := getCollection(ctx, t, client, &api.GetCollectionReq{ID: collection.ID})
+		gotCollection := got.Collection
 		assert.Equal(t, want.Name, gotCollection.Name)
 		assert.Equal(t, want.Description, gotCollection.Description)
 	}
@@ -565,8 +585,22 @@ func getBooks(ctx context.Context, t *testing.T, client *httpclient.Client, req 
 	return resp
 }
 
+func getBook(ctx context.Context, t *testing.T, client *httpclient.Client, req *api.GetBookReq) *api.GetBookResp {
+	resp, err := client.GetBook(ctx, req)
+	assert.NoError(t, err)
+
+	return resp
+}
+
 func getCollections(ctx context.Context, t *testing.T, client *httpclient.Client, req *api.GetCollectionsReq) *api.GetCollectionsResp {
 	resp, err := client.GetCollections(ctx, req)
+	assert.NoError(t, err)
+
+	return resp
+}
+
+func getCollection(ctx context.Context, t *testing.T, client *httpclient.Client, req *api.GetCollectionReq) *api.GetCollectionResp {
+	resp, err := client.GetCollection(ctx, req)
 	assert.NoError(t, err)
 
 	return resp

@@ -6,51 +6,37 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jmoiron/sqlx"
 	"github.com/lib/pq"
 
 	bm "github.com/Tsapen/bm/internal/bm"
 )
 
+// Collection gets collection by its id.
+func (s *DB) Collection(ctx context.Context, id int64) (*bm.Collection, error) {
+	q := `SELECT id, name, description FROM collections c 
+			WHERE id=$1
+	`
+
+	collection := new(bm.Collection)
+	err := s.GetContext(ctx, collection, q, id)
+	if err != nil {
+		return nil, bm.NewInternalError("select book: %w", err)
+	}
+
+	return collection, nil
+}
+
 // Collections gets collections.
 func (s *DB) Collections(ctx context.Context, f bm.CollectionsFilter) ([]bm.Collection, error) {
 	q := "SELECT c.id, c.name, c.description FROM collections c "
-	whereClause, params := collectionsWhereClause(f)
-	q += whereClause
-	q += orderBy("c", f.OrderBy, f.Desc)
 	q += pagination(f.Page, f.PageSize)
 
-	rows, err := s.NamedQueryContext(ctx, q, params)
-	if err != nil {
-		return nil, fmt.Errorf("select collections: %w", err)
-	}
-
-	defer func() {
-		err = bm.HandleErrPair(rows.Close(), err)
-	}()
-
 	var collections []bm.Collection
-	if err = sqlx.StructScan(rows, &collections); err != nil {
-		return nil, fmt.Errorf("copy data into struct: %w", err)
+	if err := s.SelectContext(ctx, &collections, q); err != nil {
+		return nil, bm.NewInternalError("select collections: %w", err)
 	}
 
 	return collections, nil
-}
-
-func collectionsWhereClause(f bm.CollectionsFilter) (string, map[string]any) {
-	whereClauses := make([]string, 0)
-	params := make(map[string]any, 0)
-
-	if len(f.IDs) > 0 {
-		whereClauses = append(whereClauses, "c.id = ANY(:ids) ")
-		params["ids"] = pq.Array(f.IDs)
-	}
-
-	if len(whereClauses) == 0 {
-		return "", map[string]any{}
-	}
-
-	return "WHERE " + strings.Join(whereClauses, " AND "), params
 }
 
 func (s *DB) CreateCollection(ctx context.Context, c bm.Collection) (int64, error) {
@@ -63,7 +49,7 @@ func (s *DB) CreateCollection(ctx context.Context, c bm.Collection) (int64, erro
 	var id int64
 	err := s.QueryRowContext(ctx, query, c.Name, c.Description).Scan(&id)
 	if err != nil {
-		return 0, fmt.Errorf("execute collection insert: %w", err)
+		return 0, bm.NewInternalError("insert collection: %w", err)
 	}
 
 	return id, nil
@@ -79,16 +65,16 @@ func (s *DB) UpdateCollection(ctx context.Context, c bm.Collection) (err error) 
 
 	result, err := s.DB.ExecContext(ctx, q, params...)
 	if err != nil {
-		return fmt.Errorf("update collection: %w", err)
+		return bm.NewInternalError("update collection: %w", err)
 	}
 
 	rowsAffected, err := result.RowsAffected()
 	if err != nil {
-		return fmt.Errorf("get the number of affected rows: %w", err)
+		return bm.NewInternalError("get the number of affected rows: %w", err)
 	}
 
 	if rowsAffected == 0 {
-		return fmt.Errorf("collection with ID %d not found", c.ID)
+		return bm.NewNotFoundError("collection with ID %d not found", c.ID)
 	}
 
 	return nil
@@ -99,18 +85,18 @@ func (s *DB) DeleteCollection(ctx context.Context, id int64) error {
 	err := s.withTX(ctx, func(tx *sql.Tx) error {
 		q := `DELETE FROM books_collection bc WHERE bc.collection_id = $1`
 		if _, err := tx.ExecContext(ctx, q, id); err != nil {
-			return fmt.Errorf("delete collection books: %w", err)
+			return bm.NewInternalError("delete collection books: %w", err)
 		}
 
 		q = `DELETE FROM collections WHERE id = $1`
 		if _, err := tx.ExecContext(ctx, q, id); err != nil {
-			return fmt.Errorf("delete collection: %w", err)
+			return bm.NewInternalError("delete collection: %w", err)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("execute tx: %w", err)
+		return bm.NewInternalError("execute tx: %w", err)
 	}
 
 	return nil
@@ -138,13 +124,13 @@ func (s *DB) CreateBooksCollection(ctx context.Context, cID int64, bookIDs []int
 		}
 
 		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
-			return fmt.Errorf("execute add books to collection: %w", err)
+			return bm.NewInternalError("add books to collection: %w", err)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return fmt.Errorf("execute tx: %w", err)
+		return bm.NewInternalError("execute tx: %w", err)
 	}
 
 	return nil
@@ -153,9 +139,18 @@ func (s *DB) CreateBooksCollection(ctx context.Context, cID int64, bookIDs []int
 // DeleteBooksCollection deletes books from a collection.
 func (s *DB) DeleteBooksCollection(ctx context.Context, cID int64, bookIDs []int64) error {
 	q := `DELETE FROM books_collection bc WHERE bc.collection_id = $1 AND bc.book_id = ANY ($2)`
-	_, err := s.ExecContext(ctx, q, cID, pq.Array(bookIDs))
+	result, err := s.ExecContext(ctx, q, cID, pq.Array(bookIDs))
 	if err != nil {
-		return fmt.Errorf("remove books from collection: %w", err)
+		return bm.NewInternalError("remove books from collection: %w", err)
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return bm.NewInternalError("get the number of affected rows: %w", err)
+	}
+
+	if rowsAffected == 0 {
+		return bm.NewNotFoundError("book with ID %v not found in collection %d", bookIDs, cID)
 	}
 
 	return nil

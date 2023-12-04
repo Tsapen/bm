@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net/http"
 	"strconv"
-	"strings"
 
 	bm "github.com/Tsapen/bm/internal/bm"
 	"github.com/Tsapen/bm/pkg/api"
@@ -18,20 +17,6 @@ func parseGetCollectionsReq(r *http.Request) (*api.GetCollectionsReq, error) {
 	}
 
 	var err error
-	if idsParam := q.Get("ids"); len(idsParam) > 0 {
-		idStrs := strings.Split(idsParam, ",")
-		ids := make([]int64, 0, len(idStrs))
-		for _, idStr := range idStrs {
-			id, err := strconv.ParseInt(idStr, 10, 64)
-			if err != nil {
-				return nil, fmt.Errorf("incorrect id: %w", err)
-			}
-
-			ids = append(ids, id)
-		}
-
-		req.IDs = ids
-	}
 
 	if descStr := q.Get("desc"); descStr != "" {
 		req.Desc, err = strconv.ParseBool(descStr)
@@ -57,7 +42,7 @@ func parseGetCollectionsReq(r *http.Request) (*api.GetCollectionsReq, error) {
 	return req, nil
 }
 
-func (b *serviceBundle) getCollections(ctx context.Context, r *api.GetCollectionsReq) (*api.GetCollectionsResp, error) {
+func (b *serviceBundle) getCollections(ctx context.Context, r *api.GetCollectionsReq) (any, error) {
 	collections, err := b.bookService.Collections(ctx, bm.CollectionsFilter(*r))
 	if err != nil {
 		return nil, fmt.Errorf("get collections: %w", err)

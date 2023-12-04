@@ -4,11 +4,43 @@ import (
 	"fmt"
 )
 
-// ValidationError is special error for incorrect request data.
-type ValidationError string
+// InternalError implements error interface.
+type InternalError struct {
+	Err error
+}
+
+func (err InternalError) Error() string {
+	return err.Err.Error()
+}
+
+func NewInternalError(format string, a ...any) InternalError {
+	return InternalError{fmt.Errorf(format, a...)}
+}
+
+// NotFoundError implements error interface.
+type NotFoundError struct {
+	Err error
+}
+
+func (err NotFoundError) Error() string {
+	return err.Err.Error()
+}
+
+func NewNotFoundError(format string, a ...any) NotFoundError {
+	return NotFoundError{fmt.Errorf(format, a...)}
+}
+
+// ValidationError implements error interface.
+type ValidationError struct {
+	Err error
+}
 
 func (err ValidationError) Error() string {
-	return string(err)
+	return err.Err.Error()
+}
+
+func NewValidationError(format string, a ...any) ValidationError {
+	return ValidationError{fmt.Errorf(format, a...)}
 }
 
 // ErrPair contains deferred and returned error.

@@ -8,7 +8,7 @@ import (
 	"github.com/Tsapen/bm/pkg/api"
 )
 
-func (b *serviceBundle) createCollection(ctx context.Context, r *api.CreateCollectionReq) (*api.CreateCollectionResp, error) {
+func (b *serviceBundle) createCollection(ctx context.Context, r *api.CreateCollectionReq) (any, error) {
 	collectionData := bm.Collection{
 		Name:        r.Name,
 		Description: r.Description,

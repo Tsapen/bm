@@ -10,12 +10,12 @@ const (
 
 // Service stores and manages books and collections.
 type Service struct {
-	db bm.Storage
+	storage bm.Storage
 }
 
 // New constructs new book service.
 func New(db bm.Storage) *Service {
 	return &Service{
-		db: db,
+		storage: db,
 	}
 }

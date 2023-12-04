@@ -11,6 +11,9 @@ func httpStatus(err error) int {
 	case bm.ValidationError:
 		return http.StatusBadRequest
 
+	case bm.NotFoundError:
+		return http.StatusBadRequest
+
 	default:
 		return http.StatusInternalServerError
 	}

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
 	bm "github.com/Tsapen/bm/internal/bm"
@@ -42,18 +43,20 @@ func NewServer(cfg Config, bookService *bs.Service) (*Server, error) {
 
 	r := mux.NewRouter()
 	r = r.PathPrefix("/api/v1").Subrouter()
+	r.HandleFunc("/books/{book_id}", handleFunc(parseGetBookReq, b.getBook)).Methods(http.MethodGet)
 	r.HandleFunc("/books", handleFunc(parseGetBooksReq, b.getBooks)).Methods(http.MethodGet)
-	r.HandleFunc("/book", handleFunc(parseJSONReq[api.CreateBookReq], b.createBook)).Methods(http.MethodPost)
-	r.HandleFunc("/book", handleFunc(parseJSONReq[api.UpdateBookReq], b.updateBook)).Methods(http.MethodPut)
+	r.HandleFunc("/books", handleFunc(parseJSONReq[api.CreateBookReq], b.createBook)).Methods(http.MethodPost)
+	r.HandleFunc("/books/{book_id}", handleFunc(parseUpdateBookReq, b.updateBook)).Methods(http.MethodPut)
 	r.HandleFunc("/books", handleFunc(parseJSONReq[api.DeleteBooksReq], b.deleteBooks)).Methods(http.MethodDelete)
 
+	r.HandleFunc("/collections/{collection_id}", handleFunc(parseGetCollectionReq, b.getCollection)).Methods(http.MethodGet)
 	r.HandleFunc("/collections", handleFunc(parseGetCollectionsReq, b.getCollections)).Methods(http.MethodGet)
-	r.HandleFunc("/collection", handleFunc(parseJSONReq[api.CreateCollectionReq], b.createCollection)).Methods(http.MethodPost)
-	r.HandleFunc("/collection", handleFunc(parseJSONReq[api.UpdateCollectionReq], b.updateCollection)).Methods(http.MethodPut)
-	r.HandleFunc("/collection", handleFunc(parseJSONReq[api.DeleteCollectionReq], b.deleteCollection)).Methods(http.MethodDelete)
+	r.HandleFunc("/collections", handleFunc(parseJSONReq[api.CreateCollectionReq], b.createCollection)).Methods(http.MethodPost)
+	r.HandleFunc("/collections/{collection_id}", handleFunc(parseUpdateCollectionReq, b.updateCollection)).Methods(http.MethodPut)
+	r.HandleFunc("/collections/{collection_id}", handleFunc(parseDeleteCollectionReq, b.deleteCollection)).Methods(http.MethodDelete)
 
-	r.HandleFunc("/collection/books", handleFunc(parseJSONReq[api.CreateBooksCollectionReq], b.createBooksCollection)).Methods(http.MethodPost)
-	r.HandleFunc("/collection/books", handleFunc(parseJSONReq[api.DeleteBooksCollectionReq], b.deleteBooksCollection)).Methods(http.MethodDelete)
+	r.HandleFunc("/collections/{collection_id}/books", handleFunc(parseCreateBooksCollectionReq, b.createBooksCollection)).Methods(http.MethodPost)
+	r.HandleFunc("/collections/{collection_id}/books", handleFunc(parseDeleteBooksCollectionReq, b.deleteBooksCollection)).Methods(http.MethodDelete)
 
 	var s = &Server{
 		cfg: cfg,
@@ -73,33 +76,33 @@ func NewServer(cfg Config, bookService *bs.Service) (*Server, error) {
 	return s, nil
 }
 
-func handleFunc[Req, Resp any](
+func handleFunc[Req any](
 	parseReq func(r *http.Request) (Req, error),
-	handle func(context.Context, Req) (Resp, error),
+	handle func(context.Context, Req) (any, error),
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ctx := bm.WithReqID(r.Context(), uuid.NewString())
-		log.Info().Str("request_id", bm.ReqIDFromCtx(ctx)).Str("method", r.Method).Any("path", r.URL.String()).Msg("request")
+
+		logger := log.With().Str("method", r.Method).Str("path", r.URL.String()).Str("request_id", bm.ReqIDFromCtx(ctx)).Logger()
+		logger.Info().Msg("received request")
 
 		req, err := parseReq(r)
 		if err != nil {
-			renderErr(ctx, fmt.Errorf("parse request: %w", err), w)
+			renderErr(ctx, logger, fmt.Errorf("parse request: %w", err), w)
 
 			return
 		}
 
-		log.Info().Str("request_id", bm.ReqIDFromCtx(ctx)).Str("method", r.Method).Any("path", r.URL.String()).Any("request", req).Msg("start processing")
+		log.Info().Any("request", req).Msg("request is parsed")
 
 		resp, err := handle(ctx, req)
 		if err != nil {
-			renderErr(ctx, fmt.Errorf("handle request: %w", err), w)
+			renderErr(ctx, logger, fmt.Errorf("handle request: %w", err), w)
 
 			return
 		}
 
-		log.Info().Str("request_id", bm.ReqIDFromCtx(ctx)).Str("method", r.Method).Any("path", r.URL.String()).Any("response", resp).Msg("finish processing")
-
-		renderResponse(ctx, resp, w)
+		renderResponse(ctx, logger, resp, w)
 	}
 }
 
@@ -125,20 +128,30 @@ func (s *Server) StartUnixSocketServer() error {
 func parseJSONReq[Req any](r *http.Request) (*Req, error) {
 	req := new(Req)
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		return nil, fmt.Errorf("parse request: %w", err)
+		return nil, bm.NewValidationError("parse request: %w", err)
 	}
 
 	return req, nil
 }
 
-func renderErr(ctx context.Context, err error, w http.ResponseWriter) {
-	log.Info().Str("request_id", bm.ReqIDFromCtx(ctx)).Err(err).Msg("process message")
-	w.WriteHeader(httpStatus(err))
-	renderResponse(ctx, err, w)
+func renderErr(ctx context.Context, logger zerolog.Logger, err error, w http.ResponseWriter) {
+	statusCode := httpStatus(err)
+	w.WriteHeader(statusCode)
+
+	logger.Info().Err(err).Int("status code", statusCode).Msg("failed to process message")
+	renderResponse(ctx, logger, map[string]any{"error": err}, w)
 }
 
-func renderResponse(ctx context.Context, resp any, w http.ResponseWriter) {
+func renderResponse(ctx context.Context, logger zerolog.Logger, resp any, w http.ResponseWriter) {
+	if resp == nil {
+		logger.Info().Msg("finish processing")
+
+		return
+	}
+
+	logger.Info().Any("response", resp).Msg("finish processing")
+
 	if err := json.NewEncoder(w).Encode(resp); err != nil {
-		log.Info().Str("request_id", bm.ReqIDFromCtx(ctx)).Err(err).Msg("send message")
+		log.Info().Err(err).Msg("send message")
 	}
 }
