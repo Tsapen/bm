@@ -144,6 +144,7 @@ func GetForServer() (*ServerConfig, error) {
 	}
 
 	cfg.MigrationsPath = path.Join(envs.RootDir, envs.MigrationsPath)
+	// cfg.MigrationsPath = envs.MigrationsPath
 
 	return cfg, nil
 }

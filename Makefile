@@ -1,6 +1,7 @@
 export BM_ROOT_DIR = $(shell pwd)
 export BM_SERVER_CONFIG = /configs/server_config.json
-export BM_MIGRATIONS_PATH = /migrations/migrations.sql
+export BM_MIGRATIONS_PATH = /migrations/
+export BM_TEST_MIGRATIONS_PATH = /migrations/test/
 export BM_HTTP_CLIENT_CONFIG = /configs/http_client_config.json
 export BM_CLI_CLIENT_CONFIG = /configs/cli_client_config.json
 export PORT = $(shell grep -o '"address": "[^"]*"' $(BM_ROOT_DIR)$(BM_SERVER_CONFIG) | cut -d ':' -f 3 | cut -d '"' -f 1)

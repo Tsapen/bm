@@ -21,7 +21,7 @@ func main() {
 		log.Fatal().Err(err).Msg("init storage")
 	}
 
-	if err = migrator.New(cfg.MigrationsPath, db).Apply(); err != nil {
+	if err = migrator.ApplyMigrations(cfg.MigrationsPath, db.DB.DB); err != nil {
 		log.Fatal().Err(err).Msg("apply migrations")
 	}
 

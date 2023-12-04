@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"testing"
 	"time"
@@ -40,9 +39,7 @@ func TestBM(t *testing.T) {
 		t.Fatalf("init storage: %v\n", err)
 	}
 
-	cleanUpDB(t, serverCfg.DB)
-
-	if err = migrator.New(serverCfg.MigrationsPath, db).Apply(); err != nil {
+	if err = migrator.ApplyMigrations(serverCfg.MigrationsPath, db.DB.DB); err != nil {
 		log.Fatal().Err(err).Msg("apply migrations")
 	}
 
@@ -90,23 +87,4 @@ func dbAddr(c *config.DBCfg) string {
 		c.Port,
 		c.VirtualHost,
 	)
-}
-
-func cleanUpDB(t *testing.T, c *config.DBCfg) {
-	db, err := sql.Open("postgres", dbAddr(c))
-	if err != nil {
-		t.Fatalf("open connection: %s", err)
-	}
-
-	var queries = []string{
-		`DROP TABLE IF EXISTS books_collection`,
-		`DROP TABLE IF EXISTS collections`,
-		`DROP TABLE IF EXISTS books`,
-	}
-	for _, query := range queries {
-		_, err = db.Exec(query)
-		if err != nil {
-			t.Fatalf("exec db query: %s", err)
-		}
-	}
 }

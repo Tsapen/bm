@@ -177,7 +177,7 @@ func (c *Client) doRequestWithJSON(ctx context.Context, urlPath, method string, 
 		err = bm.HandleErrPair(resp.Body.Close(), err)
 	}()
 
-	if respData != nil || resp.StatusCode < http.StatusInternalServerError {
+	if respData != nil || http.StatusOK < resp.StatusCode && resp.StatusCode < http.StatusInternalServerError {
 		if err = json.NewDecoder(resp.Body).Decode(respData); err != nil {
 			return fmt.Errorf("decode response: %w", err)
 		}

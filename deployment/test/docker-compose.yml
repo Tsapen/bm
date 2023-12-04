@@ -21,7 +21,7 @@ services:
       - BM_ROOT_DIR=/app
       - BM_SERVER_CONFIG=/configs/test_server_config.json
       - BM_HTTP_CLIENT_CONFIG=/configs/test_http_client_config.json
-      - BM_MIGRATIONS_PATH=/migrations/migrations.sql
+      - BM_MIGRATIONS_PATH=/migrations/test/
     networks:
       - bm-test-network
     depends_on:
