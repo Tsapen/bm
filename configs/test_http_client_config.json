@@ -1,4 +1,4 @@
 {
-    "address": "http://test-bm:8080",
+    "address": "http://test-bm-instance:8080",
     "timeout": "1s"
 }
