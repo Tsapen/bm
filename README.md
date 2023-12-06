@@ -52,7 +52,7 @@ make create-book TITLE="The Great Gatsby" AUTHOR="F. Scott Fitzgerald" GENRE="Cl
 ```
 or using http-server:
 ```shell
-curl -X POST -H "Content-Type: application/json" -d '{"title":"The Great Gatsby","author":"F. Scott Fitzgerald","genre":"Classic","published_date":"2023-01-01"}' http://localhost:8080/api/v1/book
+curl -X POST -H "Content-Type: application/json" -d '{"title":"The Great Gatsby","author":"F. Scott Fitzgerald","genre":"Classic","published_date":"2023-01-01"}' http://localhost:8080/api/v1/books
 
 ```
 - TITLE (string, required): The title of the book.
@@ -65,13 +65,24 @@ curl -X POST -H "Content-Type: application/json" -d '{"title":"The Great Gatsby"
 ### Get books:
 Using cli-server:
 ```shell
+make get-book ID=1
+```
+or using http-server:
+```shell
+curl -X GET -H "Content-Type: application/json" 'http://localhost:8080/api/v1/books/1'
+```
+- ID (int64, optional): The id of book to retrieve.
+
+
+### Get books:
+Using cli-server:
+```shell
 make get-books TITLE='The Great Gatsby' AUTHOR='F. Scott Fitzgerald' GENRE='Classic' START_DATE='2020-01-01' ORDER_BY=title DESC=true PAGE=1 PAGE_SIZE=10 
 ```
 or using http-server:
 ```shell
 curl -X GET -H "Content-Type: application/json" 'http://localhost:8080/api/v1/books?order_by=title&desc=true&start_date=2020-01-01&page=1&page_size=10'
 ```
-- ID (int64, optional): The id of book to retrieve.
 - AUTHOR (string, optional): The author of the book to retrieve.
 - GENRE (string, optional): The genre of the book to retrieve.
 - COLLECTION_ID (int64, optional): The collection id of the book to retrieve.
@@ -89,7 +100,7 @@ make update-book ID=2 TITLE="Updated Title" AUTHOR="Updated Author" GENRE="Updat
 ```
 or using http-server:
 ```shell
-curl -X PUT -H "Content-Type: application/json" -d '{"id":2,"title":"Updated Title","author":"Updated Author","genre":"Updated Genre"}' http://localhost:8080/api/v1/book
+curl -X PUT -H "Content-Type: application/json" -d '{"id":2,"title":"Updated Title","author":"Updated Author","genre":"Updated Genre"}' http://localhost:8080/api/v1/books/1
 ```
 - ID (int64, required): The id of the book to update.
 - TITLE (string, optional): The updated title of the book.
@@ -138,7 +149,7 @@ make update-collection ID=1 NAME="Updated Collection" DESCRIPTION="An updated co
 ```
 or using http-server:
 ```shell
-curl -X PUT -H "Content-Type: application/json" -d '{"id": 1,"name":"Updated Collection","description":"An updated collection"}' http://localhost:8080/api/v1/collection
+curl -X PUT -H "Content-Type: application/json" -d '{"name":"Updated Collection","description":"An updated collection"}' http://localhost:8080/api/v1/collections/1
 ```
 - ID (int64, required): The ID of the collection to update.
 - NAME (string, optional): The updated name of the collection.
@@ -150,32 +161,32 @@ make delete-collection ID=1
 ```
 or using http-server:
 ```
-curl -X DELETE -d '{"collection_id": 1}'  http://localhost:8080/api/v1/collection
+curl -X DELETE http://localhost:8080/api/v1/collections/1
 ```
 - ID (int64, required): The id of the collection to delete.
 ### Books-Collection Commands
 Create a books-collection association:
 Using cli-server:
 ```shell
-make create-books-collection CID=1 BOOKS_ID='3,4'
+make create-books-collection COLLECTION_ID=1 BOOK_IDS='3,4'
 ```
 or using http-server:
 ```shell
-curl -X POST -H "Content-Type: application/json" -d '{"collection_id":2,"book_ids":[3,4]}' http://localhost:8080/api/v1/collection/books
+curl -X POST -H "Content-Type: application/json" -d '{"book_ids":[14]}' http://localhost:8080/api/v1/collections/2/books
 ```
-- CID (int64, required): The id of the collection to associate books with.
-- BOOK_IDS (string, required): Ids of books to associate with the collection.
+-  COLLECTION_ID (int64, required): The id of the collection to associate books with.
+-  BOOK_IDS (string, required): Ids of books to associate with the collection.
 ### Delete a books-collection association:
 Using cli-server:
 ```shell
-make delete-books-collection CID=1 BOOKS_ID='3,4'
+make delete-books-collection COLLECTION_ID=1 BOOK_IDS='3,4'
 ```
 or using http-server:
 ```shell
-curl -X DELETE -H "Content-Type: application/json" -d '{"collection_id":2,"books_ids":[3,4]}' http://localhost:8080/api/v1/collection/books
+curl -X DELETE -H "Content-Type: application/json" -d '{"books_ids":[3,4]}' http://localhost:8080/api/v1/collections/2/books
 ```
-- CID (int64, required): The collection id to disassociate books from.
-- BOOK_IDS (string, required): Ids of books to disassociate from the collection.
+-  COLLECTION_ID (int64, required): The collection id to disassociate books from.
+-  BOOK_IDS (string, required): Ids of books to disassociate from the collection.
 
 ## HTTP Client
 The Book Management System also provides an HTTP client for interacting with the API. You can use the client to make requests and receive responses programmatically.

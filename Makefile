@@ -25,6 +25,12 @@ run-server:
 stop-server:
 	docker-compose -f $(BM_ROOT_DIR)/deployment/server/docker-compose.yml down -v --remove-orphans
 
+get-book:
+	@echo "Running get-book target"; \
+	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
+	ID="$(if $(ID),--id=$(ID),)"; \
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client get_book $$ID"
+
 get-books:
 	@echo "Running get-books target"; \
 	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
@@ -38,7 +44,7 @@ get-books:
 	DESC="$(if $(DESC),--desc=$(DESC),)"; \
 	PAGE="$(if $(PAGE),--page=$(PAGE),)"; \
 	PAGE_SIZE="$(if $(PAGE_SIZE),--page_size=$(PAGE_SIZE),)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=get_books $$ID $$AUTHOR $$GENRE $$COLLECTION_ID $$START_DATE $$FINISH_DATE $$ORDER_BY $$DESC $$PAGE $$PAGE_SIZE"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client get_books $$ID $$AUTHOR $$GENRE $$COLLECTION_ID $$START_DATE $$FINISH_DATE $$ORDER_BY $$DESC $$PAGE $$PAGE_SIZE"
 
 create-book:
 	@echo "Running create-book target"; \
@@ -49,7 +55,7 @@ create-book:
 	EDITION="$(if $(EDITION),--edition='$(EDITION)',)"; \
 	DESCRIPTION="$(if $(DESCRIPTION),--description='$(DESCRIPTION)',)"; \
 	GENRE="$(if $(GENRE),--genre='$(GENRE)',)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=create_book $$TITLE $$AUTHOR $$PUBLISHED_DATE $$EDITION $$DESCRIPTION $$GENRE"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client create_book $$TITLE $$AUTHOR $$PUBLISHED_DATE $$EDITION $$DESCRIPTION $$GENRE"
 
 update-book:
 	@echo "Running update-book target"; \
@@ -61,30 +67,35 @@ update-book:
 	EDITION="$(if $(EDITION),--edition='$(EDITION)',)"; \
 	DESCRIPTION="$(if $(DESCRIPTION),--description='$(DESCRIPTION)',)"; \
 	GENRE="$(if $(GENRE),--genre='$(GENRE)',)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=update_book $$ID $$TITLE $$AUTHOR $$PUBLISHED_DATE $$EDITION $$DESCRIPTION $$GENRE"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client update_book $$ID $$TITLE $$AUTHOR $$PUBLISHED_DATE $$EDITION $$DESCRIPTION $$GENRE"
 
 delete-books:
 	@echo "Running delete-book target"; \
 	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
 	IDS="$(if $(IDS),--ids=$(IDS),)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=delete_books $$IDS"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client delete_books $$IDS"
+
+get-collection:
+	@echo "Running get-collection target"; \
+	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
+	ID="$(if $(ID),--id='$(ID)',)"; \
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client get_collection $$ID"
 
 get-collections:
 	@echo "Running get-collections target"; \
 	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
-	IDS="$(if $(IDS),--ids='$(IDS)',)"; \
 	ORDER_BY="$(if $(ORDER_BY),--order_by='$(ORDER_BY)',)"; \
 	DESC="$(if $(DESC),--desc=$(DESC),)"; \
 	PAGE="$(if $(PAGE),--page=$(PAGE),)"; \
 	PAGE_SIZE="$(if $(PAGE_SIZE),--page_size=$(PAGE_SIZE),)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=get_collections $$IDS $$ORDER_BY $$DESC $$PAGE $$PAGE_SIZE"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client get_collections $$ORDER_BY $$DESC $$PAGE $$PAGE_SIZE"
 
 create-collection:
 	@echo "Running create-collection target"; \
 	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
 	NAME="$(if $(NAME),--name=$(NAME),)"; \
 	DESCRIPTION="$(if $(DESCRIPTION),--description='$(DESCRIPTION)',)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=create_collection $$NAME $$DESCRIPTION"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client create_collection $$NAME $$DESCRIPTION"
 
 update-collection:
 	@echo "Running update-collection target"; \
@@ -92,24 +103,24 @@ update-collection:
 	ID="$(if $(ID),--id=$(ID),)"; \
 	NAME="$(if $(NAME),--name=$(NAME),)"; \
 	DESCRIPTION="$(if $(DESCRIPTION),--description='$(DESCRIPTION)',)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=update_collection $$ID $$NAME $$DESCRIPTION"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client update_collection $$ID $$NAME $$DESCRIPTION"
 
 delete-collection:
 	@echo "Running delete-collection target"; \
 	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
 	ID="$(if $(ID),--id='$(ID)',)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=delete_collection $$ID"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client delete_collection $$ID"
 
 create-books-collection:
 	@echo "Running create-books-collection target"; \
 	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
 	COLLECTION_ID="$(if $(COLLECTION_ID),--collection_id='$(COLLECTION_ID)',)"; \
 	BOOK_IDS="$(if $(BOOK_IDS),--book_ids='$(BOOK_IDS)',)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=create_books_collection $$COLLECTION_ID $$BOOK_IDS"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client create_books_collection $$COLLECTION_ID $$BOOK_IDS"
 
 delete-books-collection:
 	@echo "Running delete-books-collection target"; \
 	SERVER_CONTAINER=$$(docker ps | grep server-bm | awk '{print $$1}'); \
 	COLLECTION_ID="$(if $(COLLECTION_ID),--collection_id='$(COLLECTION_ID)',)"; \
 	BOOK_IDS="$(if $(BOOK_IDS),--book_ids='$(BOOK_IDS)',)"; \
-	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client --action=delete_books_collection $$COLLECTION_ID $$BOOK_IDS"
+	docker exec -it $$SERVER_CONTAINER /bin/sh -c "./cli-client delete_books_collection $$COLLECTION_ID $$BOOK_IDS"

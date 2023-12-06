@@ -43,6 +43,19 @@ func NewValidationError(format string, a ...any) ValidationError {
 	return ValidationError{fmt.Errorf(format, a...)}
 }
 
+// ConflictError implements error interface.
+type ConflictError struct {
+	Err error
+}
+
+func (err ConflictError) Error() string {
+	return err.Err.Error()
+}
+
+func NewConflictError(format string, a ...any) ConflictError {
+	return ConflictError{fmt.Errorf(format, a...)}
+}
+
 // ErrPair contains deferred and returned error.
 type ErrPair struct {
 	Def error

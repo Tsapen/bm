@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -19,11 +20,16 @@ func (s *DB) Collection(ctx context.Context, id int64) (*bm.Collection, error) {
 
 	collection := new(bm.Collection)
 	err := s.GetContext(ctx, collection, q, id)
-	if err != nil {
-		return nil, bm.NewInternalError("select book: %w", err)
-	}
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, bm.NewNotFoundError("collection not found: %w", err)
 
-	return collection, nil
+	case err != nil:
+		return nil, bm.NewInternalError("select collection: %w", err)
+
+	default:
+		return collection, nil
+	}
 }
 
 // Collections gets collections.
@@ -89,14 +95,24 @@ func (s *DB) DeleteCollection(ctx context.Context, id int64) error {
 		}
 
 		q = `DELETE FROM collections WHERE id = $1`
-		if _, err := tx.ExecContext(ctx, q, id); err != nil {
+		result, err := tx.ExecContext(ctx, q, id)
+		if err != nil {
 			return bm.NewInternalError("delete collection: %w", err)
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return bm.NewInternalError("get the number of affected rows: %w", err)
+		}
+
+		if rowsAffected == 0 {
+			return bm.NewNotFoundError("collection with ID %d not found", id)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return bm.NewInternalError("execute tx: %w", err)
+		return fmt.Errorf("execute tx: %w", err)
 	}
 
 	return nil
@@ -123,14 +139,20 @@ func (s *DB) CreateBooksCollection(ctx context.Context, cID int64, bookIDs []int
 			args = append(args, cID, bookID)
 		}
 
-		if _, err := tx.ExecContext(ctx, q, args...); err != nil {
+		_, err := tx.ExecContext(ctx, q, args...)
+		pqErr := new(pq.Error)
+		if ok := errors.As(err, &pqErr); ok && pqErr.Code == constraintViolationCode {
+			return bm.NewConflictError("add books to collection: %w", err)
+		}
+
+		if err != nil {
 			return bm.NewInternalError("add books to collection: %w", err)
 		}
 
 		return nil
 	})
 	if err != nil {
-		return bm.NewInternalError("execute tx: %w", err)
+		return fmt.Errorf("execute tx: %w", err)
 	}
 
 	return nil

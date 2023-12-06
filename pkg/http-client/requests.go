@@ -66,22 +66,22 @@ func (c *Client) CreateBook(ctx context.Context, req *api.CreateBookReq) (*api.C
 	return resp, nil
 }
 
-func (c *Client) UpdateBook(ctx context.Context, req *api.UpdateBookReq) (*api.UpdateBookResp, error) {
+func (c *Client) UpdateBook(ctx context.Context, req *api.UpdateBookReq) (bool, error) {
 	err := c.doRequestWithJSON(ctx, booksPath(req.ID), http.MethodPut, req, nil)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return false, fmt.Errorf("do request: %w", err)
 	}
 
-	return &api.UpdateBookResp{Success: true}, nil
+	return true, nil
 }
 
-func (c *Client) DeleteBooks(ctx context.Context, req *api.DeleteBooksReq) (*api.DeleteBooksResp, error) {
+func (c *Client) DeleteBooks(ctx context.Context, req *api.DeleteBooksReq) (bool, error) {
 	err := c.doRequestWithJSON(ctx, booksPath(0), http.MethodDelete, req, nil)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return false, fmt.Errorf("do request: %w", err)
 	}
 
-	return &api.DeleteBooksResp{Success: true}, nil
+	return true, nil
 }
 
 func (c *Client) GetCollection(ctx context.Context, req *api.GetCollectionReq) (*api.GetCollectionResp, error) {
@@ -114,40 +114,40 @@ func (c *Client) CreateCollection(ctx context.Context, req *api.CreateCollection
 	return resp, nil
 }
 
-func (c *Client) UpdateCollection(ctx context.Context, req *api.UpdateCollectionReq) (*api.UpdateCollectionResp, error) {
+func (c *Client) UpdateCollection(ctx context.Context, req *api.UpdateCollectionReq) (bool, error) {
 	err := c.doRequestWithJSON(ctx, collectionsPath(req.ID), http.MethodPut, req, nil)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return false, fmt.Errorf("do request: %w", err)
 	}
 
-	return &api.UpdateCollectionResp{Success: true}, nil
+	return true, nil
 }
 
-func (c *Client) DeleteCollection(ctx context.Context, req *api.DeleteCollectionReq) (*api.DeleteCollectionResp, error) {
+func (c *Client) DeleteCollection(ctx context.Context, req *api.DeleteCollectionReq) (bool, error) {
 	err := c.doRequestWithJSON(ctx, collectionsPath(req.ID), http.MethodDelete, nil, nil)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return false, fmt.Errorf("do request: %w", err)
 	}
 
-	return &api.DeleteCollectionResp{Success: true}, nil
+	return true, nil
 }
 
-func (c *Client) CreateBooksCollection(ctx context.Context, req *api.CreateBooksCollectionReq) (*api.CreateBooksCollectionResp, error) {
+func (c *Client) CreateBooksCollection(ctx context.Context, req *api.CreateBooksCollectionReq) (bool, error) {
 	err := c.doRequestWithJSON(ctx, booksCollectionPath(req.CID), http.MethodPost, req, nil)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return false, fmt.Errorf("do request: %w", err)
 	}
 
-	return &api.CreateBooksCollectionResp{Success: true}, nil
+	return true, nil
 }
 
-func (c *Client) DeleteBooksCollection(ctx context.Context, req *api.DeleteBooksCollectionReq) (*api.DeleteBooksCollectionResp, error) {
+func (c *Client) DeleteBooksCollection(ctx context.Context, req *api.DeleteBooksCollectionReq) (bool, error) {
 	err := c.doRequestWithJSON(ctx, booksCollectionPath(req.CID), http.MethodDelete, req, nil)
 	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
+		return false, fmt.Errorf("do request: %w", err)
 	}
 
-	return &api.DeleteBooksCollectionResp{Success: true}, nil
+	return true, nil
 }
 
 func (c *Client) doRequestWithJSON(ctx context.Context, urlPath, method string, reqData, respData any) (err error) {
@@ -177,22 +177,28 @@ func (c *Client) doRequestWithJSON(ctx context.Context, urlPath, method string, 
 		err = bm.HandleErrPair(resp.Body.Close(), err)
 	}()
 
-	if respData != nil || http.StatusOK < resp.StatusCode && resp.StatusCode < http.StatusInternalServerError {
+	if resp.StatusCode >= http.StatusInternalServerError {
+		return fmt.Errorf("server error: %d", resp.StatusCode)
+	}
+
+	if http.StatusOK == resp.StatusCode {
+		if respData == nil {
+			return nil
+		}
+
 		if err = json.NewDecoder(resp.Body).Decode(respData); err != nil {
 			return fmt.Errorf("decode response: %w", err)
 		}
-	}
 
-	switch {
-	case resp.StatusCode == http.StatusOK:
 		return nil
-
-	case resp.StatusCode >= http.StatusInternalServerError:
-		return fmt.Errorf("server error: %d", resp.StatusCode)
-
-	default:
-		return
 	}
+
+	errResp := map[string]any{}
+	if err = json.NewDecoder(resp.Body).Decode(&errResp); err != nil {
+		return fmt.Errorf("decode error response: %w", err)
+	}
+
+	return fmt.Errorf("%+v", errResp)
 }
 
 func (c *Client) doRequestWithURLParams(ctx context.Context, urlPath string, reqData, respData any) (err error) {
@@ -230,8 +236,10 @@ func (c *Client) doRequestWithURLParams(ctx context.Context, urlPath string, req
 		return fmt.Errorf("get error http status: %d", resp.StatusCode)
 	}
 
-	if err = json.NewDecoder(resp.Body).Decode(respData); err != nil {
-		return fmt.Errorf("decode response: %w", err)
+	if respData != nil || http.StatusOK < resp.StatusCode && resp.StatusCode < http.StatusInternalServerError {
+		if err = json.NewDecoder(resp.Body).Decode(respData); err != nil {
+			return fmt.Errorf("decode response: %w", err)
+		}
 	}
 
 	return nil

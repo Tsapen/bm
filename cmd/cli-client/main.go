@@ -2,12 +2,12 @@ package main
 
 import (
 	"context"
-	"flag"
+	"encoding/json"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
 	"time"
+
+	"github.com/spf13/cobra"
 
 	bmconfig "github.com/Tsapen/bm/internal/config"
 	"github.com/Tsapen/bm/pkg/api"
@@ -18,28 +18,246 @@ const (
 	formatDate = "2006-01-02"
 )
 
-type (
-	flags struct {
-		Action        *string
-		ID            *int64
-		IDs           *ListValue
-		Title         *string
-		Author        *string
-		PublishedDate *DateValue
-		Edition       *string
-		Description   *string
-		Genre         *string
-		CollectionID  *int64
-		BookIDs       *ListValue
-		Name          *string
-		StartDate     *DateValue
-		FinishedDate  *DateValue
-		OrderBy       *string
-		Desc          *bool
-		Page          *int64
-		PageSize      *int64
+func process[Req, Resp any](
+	ctx context.Context,
+	toReq func() (Req, error),
+	doReq func(context.Context, Req) (Resp, error),
+) {
+	req, err := toReq()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "convert to api request: %v\n", err)
+		os.Exit(1)
 	}
 
+	resp, err := doReq(ctx, req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "do request: %v\n", err)
+		os.Exit(1)
+	}
+
+	var output any = resp
+	if _, ok := output.(bool); ok {
+		output = map[string]any{
+			"success": output,
+		}
+	}
+	if err := json.NewEncoder(os.Stdout).Encode(output); err != nil {
+		fmt.Fprintf(os.Stderr, "print response: %v\n", err)
+		os.Exit(1)
+	}
+
+	os.Exit(0)
+}
+
+func main() {
+	cfg, err := bmconfig.GetForCLIClient()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "read config: %v\n", err)
+		os.Exit(1)
+	}
+
+	ctx := context.Background()
+	c := newClient(config(*cfg))
+
+	getBookReq := new(getBookReqCli)
+	var cmdGetBook = &cobra.Command{
+		Use:   "get_book [id to book]",
+		Short: "returns json with book data",
+		Args:  cobra.MinimumNArgs(0),
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, getBookReq.toAPIReq, c.httpClient.GetBook)
+		},
+	}
+
+	cmdGetBook.Flags().Int64Var(&getBookReq.ID, "id", 0, "Source directory to read from")
+	cmdGetBook.MarkFlagRequired("id")
+
+	createBookReq := new(createBookReqCli)
+	cmdCreateBook := &cobra.Command{
+		Use:   "create_book",
+		Short: "Creates a new book",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, createBookReq.toAPIReq, c.httpClient.CreateBook)
+		},
+	}
+
+	cmdCreateBook.Flags().StringVarP(&createBookReq.Title, "title", "t", "", "Title of the book (required)")
+	cmdCreateBook.Flags().StringVarP(&createBookReq.Author, "author", "a", "", "Author of the book (required)")
+	cmdCreateBook.Flags().StringVarP(&createBookReq.PublishedDate, "published_date", "d", "", "Published date of the book in the format YYYY-MM-DD (required)")
+	cmdCreateBook.Flags().StringVar(&createBookReq.Edition, "edition", "", "Edition of the book")
+	cmdCreateBook.Flags().StringVar(&createBookReq.Description, "description", "", "Description of the book")
+	cmdCreateBook.Flags().StringVar(&createBookReq.Genre, "genre", "", "Genre of the book")
+
+	cmdCreateBook.MarkFlagRequired("title")
+	cmdCreateBook.MarkFlagRequired("author")
+	cmdCreateBook.MarkFlagRequired("published_date")
+
+	getBooksReq := new(getBooksReqCli)
+	cmdGetBooks := &cobra.Command{
+		Use:   "get_books",
+		Short: "Get a list of books",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, getBooksReq.toAPIReq, c.httpClient.GetBooks)
+		},
+	}
+
+	cmdGetBooks.Flags().StringVar(&getBooksReq.Author, "author", "", "Author of the books")
+	cmdGetBooks.Flags().StringVar(&getBooksReq.Genre, "genre", "", "Genre of the books")
+	cmdGetBooks.Flags().Int64Var(&getBooksReq.CollectionID, "collection_id", 0, "ID of the collection")
+	cmdGetBooks.Flags().StringVar(&getBooksReq.StartDate, "start_date", "", "Start date in the format YYYY-MM-DD")
+	cmdGetBooks.Flags().StringVar(&getBooksReq.FinishDate, "finish_date", "", "Finish date in the format YYYY-MM-DD")
+	cmdGetBooks.Flags().StringVar(&getBooksReq.OrderBy, "order_by", "", "Order by a specific field")
+	cmdGetBooks.Flags().BoolVar(&getBooksReq.Desc, "desc", false, "Sort in descending order")
+	cmdGetBooks.Flags().Int64Var(&getBooksReq.Page, "page", 1, "Page number")
+	cmdGetBooks.Flags().Int64Var(&getBooksReq.PageSize, "page_size", 10, "Number of items per page")
+
+	updateBooksReq := new(updateBookReqCli)
+	var cmdUpdateBooks = &cobra.Command{
+		Use:   "update_book",
+		Short: "Update existing books",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, updateBooksReq.toAPIReq, c.httpClient.UpdateBook)
+		},
+	}
+
+	cmdUpdateBooks.Flags().Int64Var(&updateBooksReq.ID, "id", 0, "ID of the book to update (required)")
+	cmdUpdateBooks.Flags().StringVar(&updateBooksReq.Title, "title", "", "Updated title of the book")
+	cmdUpdateBooks.Flags().StringVar(&updateBooksReq.Author, "author", "", "Updated author of the book")
+	cmdUpdateBooks.Flags().StringVar(&updateBooksReq.PublishedDate, "published_date", "", "Updated published date of the book in the format YYYY-MM-DD")
+	cmdUpdateBooks.Flags().StringVar(&updateBooksReq.Edition, "edition", "", "Updated edition of the book")
+	cmdUpdateBooks.Flags().StringVar(&updateBooksReq.Description, "description", "", "Updated description of the book")
+	cmdUpdateBooks.Flags().StringVar(&updateBooksReq.Genre, "genre", "", "Updated genre of the book")
+	cmdUpdateBooks.MarkFlagRequired("id")
+
+	var deleteBooksReq = &deleteBooksReqCli{}
+	var cmdDeleteBooks = &cobra.Command{
+		Use:   "delete_books",
+		Short: "Delete existing books",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, deleteBooksReq.toAPIReq, c.httpClient.DeleteBooks)
+		},
+	}
+
+	cmdDeleteBooks.Flags().Int64SliceVar(&deleteBooksReq.IDs, "ids", nil, "IDs of the books to delete (comma-separated) (required)")
+	cmdDeleteBooks.MarkFlagRequired("ids")
+
+	var getCollectionReq = &getCollectionReqCli{}
+	var getCollectionsReq = &getCollectionsReqCli{}
+
+	var cmdGetCollection = &cobra.Command{
+		Use:   "get_collection",
+		Short: "Get information about a collection",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, getCollectionReq.toAPIReq, c.httpClient.GetCollection)
+		},
+	}
+
+	cmdGetCollection.Flags().Int64Var(&getCollectionReq.ID, "id", 0, "ID of the collection to retrieve (required)")
+	cmdGetCollection.MarkFlagRequired("id")
+
+	var cmdGetCollections = &cobra.Command{
+		Use:   "get_collections",
+		Short: "Get a list of collections",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, getCollectionsReq.toAPIReq, c.httpClient.GetCollections)
+		},
+	}
+
+	cmdGetCollections.Flags().StringVar(&getCollectionsReq.OrderBy, "order_by", "", "Order by a specific field")
+	cmdGetCollections.Flags().BoolVar(&getCollectionsReq.Desc, "desc", false, "Sort in descending order")
+	cmdGetCollections.Flags().Int64Var(&getCollectionsReq.Page, "page", 1, "Page number")
+	cmdGetCollections.Flags().Int64Var(&getCollectionsReq.PageSize, "page_size", 10, "Number of items per page")
+
+	var createCollectionReq = &createCollectionReqCli{}
+
+	var cmdCreateCollection = &cobra.Command{
+		Use:   "create_collection",
+		Short: "Create a new collection",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, createCollectionReq.toAPIReq, c.httpClient.CreateCollection)
+		},
+	}
+
+	cmdCreateCollection.Flags().StringVar(&createCollectionReq.Name, "name", "", "Name of the new collection (required)")
+	cmdCreateCollection.Flags().StringVar(&createCollectionReq.Description, "description", "", "Description of the new collection")
+
+	cmdCreateCollection.MarkFlagRequired("name")
+
+	var updateCollectionReq = &updateCollectionReqCli{}
+	var cmdUpdateCollection = &cobra.Command{
+		Use:   "update_collection",
+		Short: "Update an existing collection",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, updateCollectionReq.toAPIReq, c.httpClient.UpdateCollection)
+		},
+	}
+
+	cmdUpdateCollection.Flags().Int64Var(&updateCollectionReq.ID, "id", 0, "ID of the collection to update (required)")
+	cmdUpdateCollection.Flags().StringVar(&updateCollectionReq.Name, "name", "", "Updated name of the collection")
+	cmdUpdateCollection.Flags().StringVar(&updateCollectionReq.Description, "description", "", "Updated description of the collection")
+
+	cmdUpdateCollection.MarkFlagRequired("id")
+
+	var deleteCollectionsReq = &deleteCollectionsReqCli{}
+	var cmdDeleteCollections = &cobra.Command{
+		Use:   "delete_collection",
+		Short: "Delete existing collections",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, deleteCollectionsReq.toAPIReq, c.httpClient.DeleteCollection)
+		},
+	}
+
+	cmdDeleteCollections.Flags().Int64Var(&deleteCollectionsReq.ID, "id", 0, "ID of the collection to delete (required)")
+	cmdDeleteCollections.MarkFlagRequired("ids")
+
+	var createBooksCollectionReq = &createBooksCollectionReqCli{}
+
+	var cmdCreateBooksCollection = &cobra.Command{
+		Use:   "create_books_collection",
+		Short: "Create a new association between books and a collection",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, createBooksCollectionReq.toAPIReq, c.httpClient.CreateBooksCollection)
+		},
+	}
+
+	cmdCreateBooksCollection.Flags().Int64Var(&createBooksCollectionReq.CID, "collection_id", 0, "ID of the collection to associate books with (required)")
+	cmdCreateBooksCollection.Flags().Int64SliceVar(&createBooksCollectionReq.BookIDs, "book_ids", nil, "IDs of the books to associate with the collection (comma-separated) (required)")
+	cmdCreateBooksCollection.MarkFlagRequired("collection_id")
+	cmdCreateBooksCollection.MarkFlagRequired("book_ids")
+
+	var deleteBooksCollectionReq = &deleteBooksCollectionReqCli{}
+	var cmdDeleteBooksCollection = &cobra.Command{
+		Use:   "delete_books_collection",
+		Short: "Delete an association between books and a collection",
+		Run: func(cmd *cobra.Command, args []string) {
+			process(ctx, deleteBooksCollectionReq.toAPIReq, c.httpClient.DeleteBooksCollection)
+		},
+	}
+
+	cmdDeleteBooksCollection.Flags().Int64Var(&deleteBooksCollectionReq.CID, "collection_id", 0, "ID of the collection to disassociate books from (required)")
+	cmdDeleteBooksCollection.Flags().Int64SliceVar(&deleteBooksCollectionReq.BookIDs, "book_ids", nil, "IDs of the books to disassociate from the collection (comma-separated) (required)")
+	cmdDeleteBooksCollection.MarkFlagRequired("collection_id")
+	cmdDeleteBooksCollection.MarkFlagRequired("book_ids")
+
+	rootCmd := &cobra.Command{Use: "app"}
+	rootCmd.AddCommand(
+		cmdGetBook,
+		cmdCreateBook,
+		cmdGetBooks,
+		cmdUpdateBooks,
+		cmdDeleteBooks,
+		cmdGetCollection,
+		cmdGetCollections,
+		cmdCreateCollection,
+		cmdUpdateCollection,
+		cmdDeleteCollections,
+		cmdCreateBooksCollection,
+		cmdDeleteBooksCollection,
+	)
+	rootCmd.Execute()
+}
+
+type (
 	config struct {
 		SocketPath string
 		Timeout    time.Duration
@@ -60,278 +278,209 @@ func newClient(cfg config) *cliClient {
 			Timeout:    cfg.Timeout,
 		}),
 	}
-
 }
 
-func main() {
-	cfg, err := bmconfig.GetForCLIClient()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "read config: %v\n", err)
-		os.Exit(1)
-	}
-
-	f := parseFlags()
-	ctx := context.Background()
-
-	resp, err := newClient(config(*cfg)).process(ctx, f)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "process command: %v\n", err)
-		os.Exit(1)
-	}
-
-	fmt.Fprint(os.Stdout, resp)
-	os.Exit(0)
+type getBookReqCli struct {
+	ID int64
 }
 
-func parseFlags() *flags {
-	f := &flags{
-		IDs:          new(ListValue),
-		BookIDs:      new(ListValue),
-		StartDate:    new(DateValue),
-		FinishedDate: new(DateValue),
-	}
-
-	f.Action = flag.String("action", "", "API action")
-	f.ID = flag.Int64("id", 0, "ID")
-	flag.Var(f.IDs, "ids", "IDs")
-	f.Title = flag.String("title", "", "Title")
-	f.Author = flag.String("author", "", "Author")
-	flag.Var(f.PublishedDate, "date", "Published date (format: '2006-01-02')")
-	f.Edition = flag.String("edition", "", "Edition")
-	f.Description = flag.String("description", "", "Description")
-	f.Genre = flag.String("genre", "", "Genre")
-	f.CollectionID = flag.Int64("collection_id", 0, "Collection ID")
-	flag.Var(f.BookIDs, "book_ids", "Book IDs")
-	f.Name = flag.String("name", "", "Name")
-	flag.Var(f.StartDate, "start_date", "Start date (format: '2006-01-02')")
-	flag.Var(f.FinishedDate, "finished_date", "Finished date (format: '2006-01-02')")
-	f.OrderBy = flag.String("order_by", "", "Order by")
-	f.Desc = flag.Bool("desc", false, "Sort in descending order")
-	f.Page = flag.Int64("page", 1, "Page number")
-	f.PageSize = flag.Int64("page_size", 50, "Page size")
-
-	flag.Parse()
-
-	return f
-}
-
-func (c *cliClient) process(ctx context.Context, f *flags) (any, error) {
-	switch *f.Action {
-	case "get_books":
-		return doRequest(ctx, f.toGetBooksReq, c.httpClient.GetBooks)
-
-	case "create_book":
-		return doRequest(ctx, f.toCreateBookReq, c.httpClient.CreateBook)
-
-	case "update_book":
-		return doRequest(ctx, f.toUpdateBookReq, c.httpClient.UpdateBook)
-
-	case "delete_books":
-		return doRequest(ctx, f.toDeleteBooksReq, c.httpClient.DeleteBooks)
-
-	case "get_collections":
-		return doRequest(ctx, f.toGetCollectionsReq, c.httpClient.GetCollections)
-
-	case "create_collection":
-		return doRequest(ctx, f.toCreateCollectionReq, c.httpClient.CreateCollection)
-
-	case "update_collection":
-		return doRequest(ctx, f.toUpdateCollectionReq, c.httpClient.UpdateCollection)
-
-	case "delete_collection":
-		return doRequest(ctx, f.toDeleteCollectionReq, c.httpClient.DeleteCollection)
-
-	case "create_books_collection":
-		return doRequest(ctx, f.toCreateBooksCollectionReq, c.httpClient.CreateBooksCollection)
-
-	case "delete_books_collection":
-		return doRequest(ctx, f.toDeleteBooksCollectionReq, c.httpClient.DeleteBooksCollection)
-
-	default:
-		return nil, fmt.Errorf("unknown command: '%s'", *f.Action)
-	}
-}
-
-func doRequest[Req, Resp any](ctx context.Context, toReq func() (Req, error), doReq func(context.Context, Req) (Resp, error)) (any, error) {
-	req, err := toReq()
-	if err != nil {
-		return nil, fmt.Errorf("convert to request: %w", err)
-	}
-
-	resp, err := doReq(ctx, req)
-	if err != nil {
-		return nil, fmt.Errorf("do request: %w", err)
-	}
-
-	return resp, nil
-}
-
-func (f *flags) toGetBooksReq() (*api.GetBooksReq, error) {
-	return &api.GetBooksReq{
-		Author:       toValue(f.Author),
-		Genre:        toValue(f.Genre),
-		CollectionID: toValue(f.CollectionID),
-		StartDate:    f.StartDate.date(),
-		FinishDate:   f.FinishedDate.Date,
-		OrderBy:      toValue(f.OrderBy),
-		Desc:         toValue(f.Desc),
-		Page:         toValue(f.Page),
-		PageSize:     toValue(f.PageSize),
+func (r *getBookReqCli) toAPIReq() (*api.GetBookReq, error) {
+	return &api.GetBookReq{
+		ID: r.ID,
 	}, nil
 }
 
-func (f *flags) toCreateBookReq() (*api.CreateBookReq, error) {
+type getBooksReqCli struct {
+	Author       string
+	Genre        string
+	CollectionID int64
+	StartDate    string
+	FinishDate   string
+	OrderBy      string
+	Desc         bool
+	Page         int64
+	PageSize     int64
+}
+
+func (r *getBooksReqCli) toAPIReq() (*api.GetBooksReq, error) {
+	req := &api.GetBooksReq{
+		Author:       r.Author,
+		Genre:        r.Genre,
+		CollectionID: r.CollectionID,
+		OrderBy:      r.OrderBy,
+		Desc:         r.Desc,
+		Page:         r.Page,
+		PageSize:     r.PageSize,
+	}
+
+	var err error
+
+	if r.StartDate != "" {
+		req.StartDate, err = time.Parse(formatDate, r.StartDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse start_date: %v", err)
+		}
+	}
+
+	if r.FinishDate != "" {
+		req.FinishDate, err = time.Parse(formatDate, r.FinishDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse finish_date: %v", err)
+		}
+	}
+
+	return req, nil
+}
+
+type createBookReqCli struct {
+	Title         string
+	Author        string
+	PublishedDate string
+	Edition       string
+	Description   string
+	Genre         string
+}
+
+func (r *createBookReqCli) toAPIReq() (*api.CreateBookReq, error) {
+	parsedDate, err := time.Parse(formatDate, r.PublishedDate)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse published_date: %v", err)
+	}
+
 	return &api.CreateBookReq{
-		Title:         toValue(f.Title),
-		Author:        toValue(f.Author),
-		PublishedDate: f.PublishedDate.date(),
-		Edition:       toValue(f.Edition),
-		Description:   toValue(f.Description),
-		Genre:         toValue(f.Genre),
+		Title:         r.Title,
+		Author:        r.Author,
+		PublishedDate: parsedDate,
+		Edition:       r.Edition,
+		Description:   r.Description,
+		Genre:         r.Genre,
 	}, nil
 }
 
-func (f *flags) toUpdateBookReq() (*api.UpdateBookReq, error) {
-	return &api.UpdateBookReq{
-		ID:            toValue(f.ID),
-		Title:         toValue(f.Title),
-		Author:        toValue(f.Author),
-		PublishedDate: f.PublishedDate.date(),
-		Edition:       toValue(f.Edition),
-		Description:   toValue(f.Description),
-		Genre:         toValue(f.Genre),
-	}, nil
+type updateBookReqCli struct {
+	ID            int64
+	Title         string
+	Author        string
+	PublishedDate string
+	Edition       string
+	Description   string
+	Genre         string
 }
 
-func (f *flags) toDeleteBooksReq() (*api.DeleteBooksReq, error) {
-	return &api.DeleteBooksReq{
-		IDs: f.IDs.IDs,
-	}, nil
-}
-
-func (f *flags) toGetCollectionsReq() (*api.GetCollectionsReq, error) {
-	return &api.GetCollectionsReq{
-		OrderBy:  toValue(f.OrderBy),
-		Desc:     toValue(f.Desc),
-		Page:     toValue(f.Page),
-		PageSize: toValue(f.PageSize),
-	}, nil
-}
-
-func (f *flags) toCreateCollectionReq() (*api.CreateCollectionReq, error) {
-	return &api.CreateCollectionReq{
-		Name:        toValue(f.Name),
-		Description: toValue(f.Description),
-	}, nil
-}
-
-func (f *flags) toUpdateCollectionReq() (*api.UpdateCollectionReq, error) {
-	return &api.UpdateCollectionReq{
-		ID:          toValue(f.ID),
-		Name:        toValue(f.Name),
-		Description: toValue(f.Description),
-	}, nil
-}
-
-func (f *flags) toDeleteCollectionReq() (*api.DeleteCollectionReq, error) {
-	id := toValue(f.ID)
-	if id == 0 {
-		return nil, fmt.Errorf("collection id is required")
-	}
-
-	return &api.DeleteCollectionReq{
-		ID: id,
-	}, nil
-}
-
-func (f *flags) toCreateBooksCollectionReq() (*api.CreateBooksCollectionReq, error) {
-	cid := toValue(f.CollectionID)
-	if cid <= 0 || len(f.BookIDs.IDs) == 0 {
-		return nil, fmt.Errorf("CollectionID and BookID are required for create_books_collection action")
-	}
-
-	return &api.CreateBooksCollectionReq{
-		CID:     cid,
-		BookIDs: f.BookIDs.IDs,
-	}, nil
-}
-
-func (f *flags) toDeleteBooksCollectionReq() (*api.DeleteBooksCollectionReq, error) {
-	if f.CollectionID == nil || len(f.BookIDs.IDs) == 0 {
-		return nil, fmt.Errorf("both of collection_id and book_ids are required")
-	}
-
-	return &api.DeleteBooksCollectionReq{
-		CID:     toValue(f.CollectionID),
-		BookIDs: f.BookIDs.IDs,
-	}, nil
-}
-
-type DateValue struct {
-	Date time.Time
-}
-
-func (v *DateValue) date() time.Time {
-	if v != nil {
-		return v.Date
-	}
-
-	return time.Time{}
-}
-
-func (v *DateValue) String() string {
-	if v != nil {
-		return v.Date.Format(formatDate)
-	}
-	return ""
-}
-
-func (v *DateValue) Set(str string) error {
-	t, err := time.Parse(formatDate, str)
-	if err != nil {
-		return err
-	}
-
-	v.Date = t
-
-	return nil
-}
-
-type ListValue struct {
+type deleteBooksReqCli struct {
 	IDs []int64
 }
 
-func (v *ListValue) String() string {
-	if v.IDs != nil {
-		return fmt.Sprint(v.IDs)
-	}
-	return ""
-}
+func (r *updateBookReqCli) toAPIReq() (*api.UpdateBookReq, error) {
+	var publishedDate time.Time
+	var err error
 
-func (v *ListValue) Set(str string) error {
-	if str == "" {
-		return nil
-	}
-
-	ids := make([]int64, 0)
-	for _, idStr := range strings.Split(str, ",") {
-		id, err := strconv.ParseInt(idStr, 10, 64)
-		if err != nil || id <= 0 {
-			return fmt.Errorf("incorrect id: '%s'", idStr)
+	if r.PublishedDate != "" {
+		publishedDate, err = time.Parse(formatDate, r.PublishedDate)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse published_date: %v", err)
 		}
-
-		ids = append(ids, id)
 	}
 
-	v.IDs = ids
-
-	return nil
+	return &api.UpdateBookReq{
+		ID:            r.ID,
+		Title:         r.Title,
+		Author:        r.Author,
+		PublishedDate: publishedDate,
+		Edition:       r.Edition,
+		Description:   r.Description,
+		Genre:         r.Genre,
+	}, nil
 }
 
-func toValue[T any](ptr *T) (v T) {
-	if ptr != nil {
-		return *ptr
-	}
+func (r *deleteBooksReqCli) toAPIReq() (*api.DeleteBooksReq, error) {
+	return &api.DeleteBooksReq{
+		IDs: r.IDs,
+	}, nil
+}
 
-	return
+type getCollectionReqCli struct {
+	ID int64
+}
+
+type getCollectionsReqCli struct {
+	OrderBy  string
+	Desc     bool
+	Page     int64
+	PageSize int64
+}
+
+func (r *getCollectionReqCli) toAPIReq() (*api.GetCollectionReq, error) {
+	return &api.GetCollectionReq{
+		ID: r.ID,
+	}, nil
+}
+
+func (r *getCollectionsReqCli) toAPIReq() (*api.GetCollectionsReq, error) {
+	return &api.GetCollectionsReq{
+		OrderBy:  r.OrderBy,
+		Desc:     r.Desc,
+		Page:     r.Page,
+		PageSize: r.PageSize,
+	}, nil
+}
+
+type createCollectionReqCli struct {
+	Name        string
+	Description string
+}
+
+func (r *createCollectionReqCli) toAPIReq() (*api.CreateCollectionReq, error) {
+	return &api.CreateCollectionReq{
+		Name:        r.Name,
+		Description: r.Description,
+	}, nil
+}
+
+type updateCollectionReqCli struct {
+	ID          int64
+	Name        string
+	Description string
+}
+
+func (r *updateCollectionReqCli) toAPIReq() (*api.UpdateCollectionReq, error) {
+	return &api.UpdateCollectionReq{
+		ID:          r.ID,
+		Name:        r.Name,
+		Description: r.Description,
+	}, nil
+}
+
+type deleteCollectionsReqCli struct {
+	ID int64
+}
+
+func (r *deleteCollectionsReqCli) toAPIReq() (*api.DeleteCollectionReq, error) {
+	return &api.DeleteCollectionReq{
+		ID: r.ID,
+	}, nil
+}
+
+type createBooksCollectionReqCli struct {
+	CID     int64
+	BookIDs []int64
+}
+
+func (r *createBooksCollectionReqCli) toAPIReq() (*api.CreateBooksCollectionReq, error) {
+	return &api.CreateBooksCollectionReq{
+		CID:     r.CID,
+		BookIDs: r.BookIDs,
+	}, nil
+}
+
+type deleteBooksCollectionReqCli struct {
+	CID     int64
+	BookIDs []int64
+}
+
+func (r *deleteBooksCollectionReqCli) toAPIReq() (*api.DeleteBooksCollectionReq, error) {
+	return &api.DeleteBooksCollectionReq{
+		CID:     r.CID,
+		BookIDs: r.BookIDs,
+	}, nil
 }

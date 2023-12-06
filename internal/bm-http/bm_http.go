@@ -139,7 +139,7 @@ func renderErr(ctx context.Context, logger zerolog.Logger, err error, w http.Res
 	w.WriteHeader(statusCode)
 
 	logger.Info().Err(err).Int("status code", statusCode).Msg("failed to process message")
-	renderResponse(ctx, logger, map[string]any{"error": err}, w)
+	renderResponse(ctx, logger, map[string]any{"error": err.Error()}, w)
 }
 
 func renderResponse(ctx context.Context, logger zerolog.Logger, resp any, w http.ResponseWriter) {

@@ -2,6 +2,8 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"fmt"
 	"strings"
 
@@ -9,6 +11,10 @@ import (
 	"github.com/lib/pq"
 
 	bm "github.com/Tsapen/bm/internal/bm"
+)
+
+const (
+	constraintViolationCode = "23503"
 )
 
 func (s *DB) CreateBook(ctx context.Context, b bm.Book) (int64, error) {
@@ -30,6 +36,10 @@ func (s *DB) CreateBook(ctx context.Context, b bm.Book) (int64, error) {
 		b.Genre,
 	).
 		Scan(&bookID)
+	pqErr := new(pq.Error)
+	if ok := errors.As(err, &pqErr); ok && pqErr.Code == constraintViolationCode {
+		return 0, bm.NewConflictError("insert book: %w", err)
+	}
 	if err != nil {
 		return 0, bm.NewInternalError("insert book: %w", err)
 	}
@@ -45,11 +55,16 @@ func (s *DB) Book(ctx context.Context, id int64) (*bm.Book, error) {
 
 	book := new(bm.Book)
 	err := s.GetContext(ctx, book, q, id)
-	if err != nil {
-		return nil, bm.NewInternalError("select book: %w", err)
-	}
+	switch {
+	case errors.Is(err, sql.ErrNoRows):
+		return nil, bm.NewNotFoundError("book not found: %w", err)
 
-	return book, nil
+	case err != nil:
+		return nil, bm.NewInternalError("select book: %w", err)
+
+	default:
+		return book, nil
+	}
 }
 
 func joinCollection(f bm.BookFilter) string {
@@ -168,20 +183,32 @@ func (s *DB) UpdateBook(ctx context.Context, b bm.Book) error {
 }
 
 func (s *DB) DeleteBooks(ctx context.Context, ids []int64) error {
-	q := `DELETE FROM books b WHERE id = ANY($1)`
+	err := s.withTX(ctx, func(tx *sql.Tx) error {
+		q := `DELETE FROM books_collection bc WHERE bc.book_id = ANY($1)`
+		_, err := tx.ExecContext(ctx, q, pq.Array(ids))
+		if err != nil {
+			return bm.NewInternalError("delete collection books: %w", err)
+		}
 
-	result, err := s.ExecContext(ctx, q, pq.Array(ids))
+		q = `DELETE FROM books b WHERE id = ANY($1)`
+		result, err := tx.ExecContext(ctx, q, pq.Array(ids))
+		if err != nil {
+			return bm.NewInternalError("delete books: %w", err)
+		}
+
+		rowsAffected, err := result.RowsAffected()
+		if err != nil {
+			return bm.NewInternalError("get the number of affected rows: %w", err)
+		}
+
+		if rowsAffected == 0 {
+			return bm.NewNotFoundError("book with ID %v not found", ids)
+		}
+
+		return nil
+	})
 	if err != nil {
-		return bm.NewInternalError("delete books: %w", err)
-	}
-
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return bm.NewInternalError("get the number of affected rows: %w", err)
-	}
-
-	if rowsAffected == 0 {
-		return bm.NewNotFoundError("book with ID %v not found", ids)
+		return fmt.Errorf("execute tx: %w", err)
 	}
 
 	return nil

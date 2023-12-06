@@ -64,16 +64,8 @@ type (
 		Genre         string    `json:"genre"`
 	}
 
-	UpdateBookResp struct {
-		Success bool `json:"-"`
-	}
-
 	DeleteBooksReq struct {
 		IDs []int64 `json:"ids"`
-	}
-
-	DeleteBooksResp struct {
-		Success bool `json:"-"`
 	}
 
 	GetCollectionReq struct {
@@ -124,26 +116,14 @@ type (
 		ID int64 `json:"-"`
 	}
 
-	DeleteCollectionResp struct {
-		Success bool `json:"-"`
-	}
-
 	CreateBooksCollectionReq struct {
 		CID     int64   `json:"-"`
 		BookIDs []int64 `json:"book_ids"`
 	}
 
-	CreateBooksCollectionResp struct {
-		Success bool `json:"-"`
-	}
-
 	DeleteBooksCollectionReq struct {
 		CID     int64   `json:"-"`
 		BookIDs []int64 `json:"books_ids"`
-	}
-
-	DeleteBooksCollectionResp struct {
-		Success bool `json:"-"`
 	}
 )
 
