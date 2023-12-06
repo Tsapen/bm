@@ -1,0 +1,4 @@
+{
+    "socket_path": "/socket/socket.sock",
+    "timeout": "5s"
+}
